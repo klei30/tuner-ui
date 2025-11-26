@@ -1,8 +1,6 @@
-# Tinker UI
-
 <div align="center">
   <img src="frontend/public/favicon.png" alt="Tinker Platform Logo" width="80" height="80" style="border-radius: 16px; box-shadow: 0 8px 16px rgba(0,0,0,0.15); border: 2px solid #e5e7eb;">
-  <p><strong>Tinker Platform</strong></p>
+  <p><strong>Tinker UI</strong></p>
   <p><em>A full-stack platform for fine-tuning and training AI models, featuring a modern web UI and powerful backend API.</em></p>
 
   ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
