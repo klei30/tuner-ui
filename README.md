@@ -26,7 +26,7 @@ This project was 99% vibe coded as a fun Saturday hack to explore the Tinker Coo
 - [License](#license)
 
 ## Demo Video
-Watch the complete demo: https://www.youtube.com/watch?v=f2bYUzlbcAY
+Watch the complete demo: https://www.youtube.com/watch?v=qdnSWMPZri8
 
 ## UI Preview
 ![Tinker Platform Dashboard](frontend/public/dashboard.png)
