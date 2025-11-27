@@ -8,7 +8,6 @@
   ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)
   ![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)
   ![Tests](https://img.shields.io/badge/tests-229%20total-brightgreen.svg)
-  ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 </div>
 
 ## 🚨 Vibe Code Alert
