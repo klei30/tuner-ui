@@ -1,0 +1,148 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: tuner-ui-postgres
+    environment:
+      POSTGRES_DB: tunerui
+      POSTGRES_USER: tuner_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuner_user -d tunerui"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - tuner-network
+
+  # Redis for Celery Task Queue
+  redis:
+    image: redis:7-alpine
+    container_name: tuner-ui-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - tuner-network
+
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tuner-ui-backend
+    environment:
+      DATABASE_URL: postgresql://tuner_user:${POSTGRES_PASSWORD}@postgres:5432/tunerui
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      TINKER_API_KEY: ${TINKER_API_KEY}
+      ALLOW_ANON: "false"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      ARTIFACT_DIR: /app/artifacts
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./backend:/app:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4"
+    restart: unless-stopped
+    networks:
+      - tuner-network
+
+  # Celery Worker for Background Tasks
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tuner-ui-celery-worker
+    environment:
+      DATABASE_URL: postgresql://tuner_user:${POSTGRES_PASSWORD}@postgres:5432/tunerui
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      TINKER_API_KEY: ${TINKER_API_KEY}
+      ARTIFACT_DIR: /app/artifacts
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./backend:/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    restart: unless-stopped
+    networks:
+      - tuner-network
+
+  # Frontend Next.js Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Build-time args for NEXT_PUBLIC_ variables (baked into the build)
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_TINKER_API_KEY: ${TINKER_API_KEY}
+    container_name: tuner-ui-frontend
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - tuner-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: tuner-ui-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    networks:
+      - tuner-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  tuner-network:
+    driver: bridge

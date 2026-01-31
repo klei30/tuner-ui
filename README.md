@@ -71,81 +71,170 @@ Watch the complete demo: https://www.youtube.com/watch?v=qdnSWMPZri8
 - **Cost Estimation**: Training cost calculations
 
 ## Prerequisites
-Before getting started, ensure you have the following installed:
-- **Node.js** (version 18 or higher) - [Download](https://nodejs.org/)
-- **Python** (version 3.11 or higher) - [Download](https://python.org/)
-- **pnpm** (package manager) - Install with `npm install -g pnpm`
-- **Git** - [Download](https://git-scm.com/)
 
-## Installation
+**For Local Development:**
+- **Python** 3.11+ - [Download](https://python.org/)
+- **Node.js** 18+ - [Download](https://nodejs.org/)
+- **pnpm** - Install with `npm install -g pnpm`
 
-### 1. Clone the Repository
+**For Docker Deployment:**
+- **Docker** 24+ & Docker Compose V2 - [Download](https://docker.com/)
+
+## Quick Start
+
+### Option 1: Local Development (Recommended for Development)
+
+#### 1. Clone & Configure
 ```bash
 git clone https://github.com/klei30/tuner-ui.git
 cd tuner-ui
+
+# Backend config
+cp backend/.env.example backend/.env
+# Edit backend/.env and add your TINKER_API_KEY
+
+# Frontend config
+cp frontend/.env.example frontend/.env.local
 ```
 
-### 2. Backend Setup
-Navigate to the backend directory and set up the Python environment:
+#### 2. Setup Backend
 ```bash
 cd backend
 python -m venv .venv
 
-# On Windows
+# Windows
 .venv\Scripts\activate
 
-# On macOS/Linux
+# macOS/Linux
 source .venv/bin/activate
 
 pip install -r requirements.txt
 ```
 
-### 3. Frontend Setup
-Navigate to the frontend directory and install dependencies:
+#### 3. Setup Frontend
 ```bash
 cd ../frontend
 pnpm install
 ```
 
-## Configuration
-
-### Backend Configuration
-Create a `.env` file in the backend directory:
+#### 4. Run (2 terminals)
 ```bash
-# backend/.env
-TINKER_API_KEY=your_tinker_api_key_here
-DATABASE_URL=sqlite:///./tinker_platform.db
-ALLOW_ANON=true
-
-# Generate encryption key with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-ENCRYPTION_KEY=your_encryption_key_here
-```
-
-### Frontend Configuration
-Create a `.env.local` file in the frontend directory:
-```bash
-# frontend/.env.local
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
-NEXT_PUBLIC_TINKER_API_KEY=your_tinker_api_key_here
-```
-
-## Running the Application
-
-### 1. Start the Backend
-In the backend directory:
-```bash
+# Terminal 1 - Backend
 cd backend
-uvicorn main:app --reload
-```
-The backend will be available at http://127.0.0.1:8000
+uvicorn main:app --reload --port 8000
 
-### 2. Start the Frontend
-In a new terminal, navigate to the frontend directory:
-```bash
+# Terminal 2 - Frontend
 cd frontend
 pnpm dev
 ```
-The frontend will be available at http://localhost:3000
+
+**Access:** http://localhost:3000
+
+---
+
+### Option 2: Docker (Recommended for Production)
+
+#### Quick Start with Docker
+```bash
+git clone https://github.com/klei30/tuner-ui.git
+cd tuner-ui
+
+# Configure environment
+cp backend/.env.example backend/.env
+# Edit backend/.env with your TINKER_API_KEY
+
+# Start infrastructure (PostgreSQL + Redis)
+docker-compose -f docker-compose.dev.yml up -d
+
+# Run backend locally (faster iteration)
+cd backend && pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# Run frontend locally (separate terminal)
+cd frontend && pnpm install && pnpm dev
+```
+
+#### Full Docker Deployment
+```bash
+# Create root .env file for Docker Compose
+cat > .env << 'EOF'
+POSTGRES_PASSWORD=your_secure_password
+SECRET_KEY=your_32_char_secret_key_here_min
+ENCRYPTION_KEY=your_fernet_key_here
+TINKER_API_KEY=your_tinker_api_key
+EOF
+
+# Build and start all services
+docker-compose up -d --build
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+```
+
+**Access:**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+---
+
+## Configuration
+
+### Environment Files
+
+| File | Purpose |
+|------|---------|
+| `backend/.env` | Backend configuration (create from `.env.example`) |
+| `frontend/.env.local` | Frontend configuration (create from `.env.example`) |
+| `.env` (root) | Docker Compose variables (only for Docker deployment) |
+
+### Required Variables
+
+**Backend (`backend/.env`):**
+```bash
+TINKER_API_KEY=your_tinker_api_key    # Required - Get from Tinker platform
+DATABASE_URL=sqlite:///./tuner_ui.db  # SQLite for dev, PostgreSQL for prod
+ALLOW_ANON=true                        # Set to false in production
+ENCRYPTION_KEY=your_fernet_key         # Generate with command below
+```
+
+**Frontend (`frontend/.env.local`):**
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_TINKER_API_KEY=your_tinker_api_key
+```
+
+### Generate Encryption Key
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+---
+
+## Project Structure
+
+```
+tuner-ui/
+├── backend/                 # FastAPI backend
+│   ├── main.py             # API application
+│   ├── models.py           # Database models
+│   ├── celery_app.py       # Background task queue
+│   ├── alembic/            # Database migrations
+│   ├── Dockerfile          # Backend container
+│   └── .env.example        # Config template
+├── frontend/               # Next.js frontend
+│   ├── app/                # Next.js pages
+│   ├── lib/api.ts          # API client
+│   ├── Dockerfile          # Frontend container
+│   └── .env.example        # Config template
+├── nginx/                  # Reverse proxy config
+├── docker-compose.yml      # Full stack deployment
+├── docker-compose.dev.yml  # Dev infrastructure only
+└── docs/                   # Documentation
+```
 
 ## HuggingFace Deployment Setup
 
@@ -176,7 +265,7 @@ The frontend will be available at http://localhost:3000
    - Configure repository settings
    - Click "Deploy" - your model will be live on HuggingFace Hub!
 
-For detailed instructions, see [docs/HUGGINGFACE_DEPLOYMENT.md](docs/HUGGINGFACE_DEPLOYMENT.md)
+For more details, see the HuggingFace documentation at https://huggingface.co/docs
 
 ## Testing
 
@@ -282,7 +371,7 @@ If the frontend fails to compile:
 If training starts but logs don't appear in the UI:
 - Ensure the backend can write to the `artifacts/` directory
 - Check the browser console for any fetch errors
-- See [docs/PROGRESS_BAR_FIX.md](docs/PROGRESS_BAR_FIX.md) for details on progress tracking
+- Verify the backend is running and accessible
 
 #### 6. IPv4/IPv6 Resolution Issues
 If you experience connection issues:
@@ -295,29 +384,6 @@ If tests fail:
 - Check environment variables are set correctly
 - See test documentation for specific requirements
 - Some tests may require TINKER_API_KEY environment variable
-
-## Project Structure
-
-```
-tuner-ui/
-├── backend/                # FastAPI backend
-│   ├── main.py            # Main API application
-│   ├── job_runner.py      # Background job execution
-│   ├── models.py          # SQLAlchemy models
-│   ├── tinker_cookbook/   # Training recipes
-│   ├── tests/             # Backend test suite
-│   └── requirements.txt   # Python dependencies
-├── frontend/              # Next.js frontend
-│   ├── app/              # Next.js 16 app directory
-│   ├── components/       # React components
-│   ├── lib/              # Utility functions
-│   ├── tests/            # Frontend test suite
-│   └── package.json      # Node dependencies
-├── docs/                 # Documentation
-├── TESTING_SUMMARY.md    # Testing guide
-├── TEST_RESULTS.md       # Test results
-└── README.md            # This file
-```
 
 ## Contributing
 
@@ -334,10 +400,8 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## Documentation
 
-- **[docs/HUGGINGFACE_DEPLOYMENT.md](docs/HUGGINGFACE_DEPLOYMENT.md)** - HuggingFace deployment guide
-- **[TESTING_SUMMARY.md](TESTING_SUMMARY.md)** - Complete testing documentation
-- **[TEST_RESULTS.md](TEST_RESULTS.md)** - Detailed test results and analysis
-- **[docs/PROGRESS_BAR_FIX.md](docs/PROGRESS_BAR_FIX.md)** - Progress tracking implementation details
+- **API Documentation**: http://localhost:8000/docs (Swagger UI when running)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
 - **[backend/tests/README.md](backend/tests/README.md)** - Backend testing guide
 
 ## Technology Stack

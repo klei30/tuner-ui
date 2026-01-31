@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Run, RunDetail, Dataset, SupportedModel, RegisteredModel, createRun, cancelRun, getRunDetail } from '@/lib/api';
-import { RunTable } from '@/components/runs/run-table';
-import { RunCards } from '@/components/runs/run-cards';
+import { useState, useMemo } from 'react';
+import { Run, Dataset, SupportedModel, createRun } from '@/lib/api';
 import { SimpleRunList } from '@/components/runs/simple-run-list';
 import { RunFilters } from '@/components/runs/run-filters';
+import { RunDetailView } from '@/components/runs/run-detail-view';
 import { InlineTrainingWizard } from '@/components/wizard/inline-training-wizard';
 import { Button } from '@/components/ui/button';
 import { Rocket } from 'lucide-react';
@@ -99,6 +98,18 @@ export function RunsTab({
     );
    }
 
+  // Show detail view when a run is selected
+  if (selectedRunId) {
+    return (
+      <RunDetailView
+        runId={selectedRunId}
+        onBack={() => onSelectRun(null)}
+        onError={onError}
+        onSuccess={onSuccess}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header with New Run button */}
@@ -138,7 +149,12 @@ export function RunsTab({
       />
 
        {/* Runs Display */}
-       <SimpleRunList runs={filteredRuns} loading={loading} />
+       <SimpleRunList
+         runs={filteredRuns}
+         loading={loading}
+         selectedRunId={selectedRunId}
+         onSelectRun={onSelectRun}
+       />
     </div>
   );
 }

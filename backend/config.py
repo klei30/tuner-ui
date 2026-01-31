@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,6 +40,14 @@ class Settings(BaseSettings):
     # Security - NO DEFAULTS FOR SENSITIVE VALUES!
     tinker_api_key: Optional[str] = None  # MUST be set via environment
     secret_key: str = "dev-secret-key-change-in-production"  # For JWT/sessions
+    encryption_key: Optional[str] = None  # Fernet key for encrypting sensitive data
+
+    # Redis (for Celery task queue)
+    redis_url: str = "redis://localhost:6379/0"
+
+    # Monitoring
+    sentry_dsn: Optional[str] = None  # Sentry error tracking
+    environment: str = "development"  # development, staging, production
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
@@ -69,6 +78,59 @@ class Settings(BaseSettings):
     # Polling intervals (frontend)
     run_list_poll_interval_ms: int = 3000
     run_detail_poll_interval_ms: int = 2000
+
+    # Validators for production security
+    @field_validator("secret_key")
+    @classmethod
+    def secret_key_must_be_strong(cls, v: str, info) -> str:
+        """Validate that SECRET_KEY is changed from default in production."""
+        environment = info.data.get("environment", "development")
+
+        if environment == "production":
+            if v == "dev-secret-key-change-in-production":
+                raise ValueError(
+                    "SECRET_KEY must be changed from default in production! "
+                    "Generate a strong random key for production use."
+                )
+            if len(v) < 32:
+                raise ValueError(
+                    "SECRET_KEY must be at least 32 characters long in production"
+                )
+        return v
+
+    @field_validator("encryption_key")
+    @classmethod
+    def encryption_key_must_be_valid_fernet(cls, v: Optional[str], info) -> Optional[str]:
+        """Validate that ENCRYPTION_KEY is a valid Fernet key in production."""
+        if v is None:
+            return v
+
+        environment = info.data.get("environment", "development")
+
+        if environment == "production":
+            try:
+                from cryptography.fernet import Fernet
+                Fernet(v.encode())
+            except Exception as e:
+                raise ValueError(
+                    f"ENCRYPTION_KEY must be a valid Fernet key in production. "
+                    f"Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\". "
+                    f"Error: {e}"
+                )
+        return v
+
+    @field_validator("database_url")
+    @classmethod
+    def database_url_must_be_postgres_in_production(cls, v: str, info) -> str:
+        """Validate that DATABASE_URL uses PostgreSQL in production."""
+        environment = info.data.get("environment", "development")
+
+        if environment == "production" and v.startswith("sqlite"):
+            raise ValueError(
+                "SQLite is not recommended for production! "
+                "Please use PostgreSQL (postgresql://...) for production deployments."
+            )
+        return v
 
     def validate_required_settings(self) -> None:
         """Validate that required settings are present.

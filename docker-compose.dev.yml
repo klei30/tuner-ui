@@ -1,0 +1,36 @@
+# Development Docker Compose - Only infrastructure services
+# Run backend and frontend locally for faster iteration
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: tuner-ui-postgres
+    environment:
+      POSTGRES_DB: tunerui
+      POSTGRES_USER: tuner_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuner_user -d tunerui"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery Task Queue
+  redis:
+    image: redis:7-alpine
+    container_name: tuner-ui-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:

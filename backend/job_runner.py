@@ -17,8 +17,9 @@ from sqlalchemy.orm import Session
 
 # Import database models
 from database import SessionLocal
-from models import Run, Checkpoint, Dataset
+from models import Run, Checkpoint, Dataset, User
 from config import settings
+from utils.encryption import decrypt_token
 
 # Import Tinker API
 try:
@@ -168,7 +169,7 @@ class JobRunner:
 
         if not TINKER_AVAILABLE:
             await self._log(
-                logs_path, "[RUN {run.id}] Tinker API not available, using simulation\n"
+                logs_path, f"[RUN {run.id}] Tinker API not available, using simulation\n"
             )
             await self._simulate_training(
                 session, run, logs_path, metrics_path, checkpoints_dir
@@ -227,6 +228,20 @@ class JobRunner:
 
         base_model = config.get("base_model", "meta-llama/Llama-3.1-8B-Instruct")
         hyperparameters = config.get("hyperparameters", {})
+
+        # Get user's HuggingFace token for gated models (like Llama)
+        hf_token = None
+        if run.project and run.project.owner:
+            user = run.project.owner
+            if user.hf_token_encrypted:
+                try:
+                    hf_token = decrypt_token(user.hf_token_encrypted)
+                    await self._log(logs_path, f"[RUN {run.id}] Using HuggingFace token from user settings\n")
+                except Exception as e:
+                    await self._log(logs_path, f"[RUN {run.id}] Warning: Could not decrypt HF token: {e}\n")
+
+        # Set up environment with HF token
+        setup_training_environment(hf_token=hf_token)
 
         # Handle dataset
         dataset_arg = ""
@@ -412,6 +427,12 @@ class JobRunner:
             raise ValueError(error_msg)
 
         env["TINKER_API_KEY"] = settings.tinker_api_key
+
+        # Pass HuggingFace token to subprocess if available
+        if hf_token:
+            env["HF_TOKEN"] = hf_token
+            env["HUGGING_FACE_HUB_TOKEN"] = hf_token
+
         await self._log(
             logs_path,
             f"[RUN {run.id}] API key configured successfully\n",
@@ -767,6 +788,17 @@ class JobRunner:
             )
         env = os.environ.copy()
         env["TINKER_API_KEY"] = api_key
+
+        # Get and pass HuggingFace token for gated models
+        if run.project and run.project.owner:
+            user = run.project.owner
+            if user.hf_token_encrypted:
+                try:
+                    hf_token = decrypt_token(user.hf_token_encrypted)
+                    env["HF_TOKEN"] = hf_token
+                    env["HUGGING_FACE_HUB_TOKEN"] = hf_token
+                except Exception as e:
+                    await self._log(logs_path, f"[RUN {run.id}] Warning: Could not decrypt HF token: {e}\n")
 
         # Run subprocess with real-time output parsing
         try:
@@ -1308,7 +1340,7 @@ class JobRunner:
         renderer_name = model_info.get_recommended_renderer_name(base_model)
         dataset_name = config.get("dataset", "HuggingFaceH4/no_robots")
 
-        dataset_builder = chat_sl_module.get_dataset_builder(
+        dataset_builder = chat_sl.get_dataset_builder(
             dataset_name,
             base_model,
             renderer_name,
@@ -1317,7 +1349,7 @@ class JobRunner:
             config.get("train_on_what"),
         )
 
-        return chat_sl_module.train.Config(
+        return chat_sl.train.Config(
             log_path=log_path,
             model_name=base_model,
             load_checkpoint_path=None,

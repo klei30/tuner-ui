@@ -444,11 +444,6 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-@app.get("/my-test-endpoint")
-def my_test_endpoint():
-    return {"message": "test"}
-
-
 def _ensure_schema() -> None:
     try:
         with engine.connect() as conn:
@@ -1055,7 +1050,7 @@ async def calculate_all_hyperparameters(request: HyperparamRequest):
         )
 
 
-@app.get("/models/{model_name}/renderers")
+@app.get("/models/{model_name:path}/renderers")
 async def get_model_renderers(model_name: str):
     """Get recommended renderers for a specific model"""
     try:
@@ -1175,16 +1170,12 @@ def list_models(
         .scalars()
         .all()
     )
-    print(f"registry_entries count: {len(registry_entries)}")
     for entry in registry_entries:
         entry.meta = entry.meta or {}
-    models = [ModelRead.from_orm(entry) for entry in registry_entries]
-    print(f"models count: {len(models)}")
+    models = [ModelRead.model_validate(entry) for entry in registry_entries]
     response = ModelCatalogResponse(
         supported_models=SUPPORTED_MODELS, registered_models=models
     )
-    print(f"response supported_models count: {len(response.supported_models)}")
-    print(f"response registered_models count: {len(response.registered_models)}")
     return response
 
 

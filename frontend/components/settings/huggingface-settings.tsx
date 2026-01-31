@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, AlertCircle, Loader2, ExternalLink } from "lucide-react";
+import { saveHFToken, removeHFToken, getHFStatus } from "@/lib/api";
 
 export function HuggingFaceSettings() {
   const [token, setToken] = useState("");
@@ -32,16 +33,10 @@ export function HuggingFaceSettings() {
   const checkStatus = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("http://127.0.0.1:8000/settings/huggingface/status", {
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setIsConnected(data.connected);
-        setUsername(data.username);
-        setLastVerified(data.last_verified);
-      }
+      const data = await getHFStatus();
+      setIsConnected(data.connected);
+      setUsername(data.username || null);
+      setLastVerified(data.last_verified || null);
     } catch (err) {
       console.error("Failed to check HF status:", err);
     } finally {
@@ -65,24 +60,10 @@ export function HuggingFaceSettings() {
     setSuccess(null);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/settings/huggingface/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ token }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to save token");
-      }
-
-      const data = await response.json();
+      const data = await saveHFToken(token);
       setIsConnected(true);
-      setUsername(data.username);
-      setLastVerified(data.last_verified);
+      setUsername(data.username || null);
+      setLastVerified(data.last_verified || null);
       setToken(""); // Clear input
       setSuccess("HuggingFace token saved successfully!");
     } catch (err: any) {
@@ -102,15 +83,7 @@ export function HuggingFaceSettings() {
     setSuccess(null);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/settings/huggingface/token", {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to remove token");
-      }
-
+      await removeHFToken();
       setIsConnected(false);
       setUsername(null);
       setLastVerified(null);

@@ -7,6 +7,7 @@ import {
   Project,
   RegisteredModel,
   Run,
+  SupportedModel,
   createProject,
   getDatasets,
   getModelCatalog,
@@ -109,9 +110,17 @@ export default function DashboardPage() {
         setErrorMessage(null);
 
         console.log('Fetching projects...');
-        let projectList = await getProjects();
-        console.log('Projects fetched:', projectList);
+        let projectList: Project[];
+        try {
+          projectList = await getProjects();
+          console.log('Projects successful:', projectList.length);
+        } catch (err) {
+          console.error('Failed to fetch projects!', err);
+          throw err;
+        }
+
         if (!projectList.length) {
+          console.log('No projects found, creating demo project...');
           const project = await createProject({
             name: 'Demo Project',
             description: 'Auto-generated project for first-time setup.',
@@ -124,16 +133,25 @@ export default function DashboardPage() {
         const firstProject = projectList[0]?.id ?? null;
         setSelectedProjectId(firstProject);
 
-        console.log('Starting Promise.all...');
-        await Promise.all([
+        console.log('Starting parallel fetches for runs, models, datasets...');
+        const results = await Promise.allSettled([
           firstProject ? refreshRuns(firstProject) : Promise.resolve(),
           refreshModelCatalog(),
           refreshDatasets(),
         ]);
-        console.log('Promise.all completed');
+
+        results.forEach((res, i) => {
+          if (res.status === 'rejected') {
+            console.error(`Fetch ${i} failed:`, res.reason);
+          } else {
+            console.log(`Fetch ${i} succeeded`);
+          }
+        });
+
+        console.log('Bootstrap flow concluded');
       } catch (error) {
-        console.error(error);
-        setErrorMessage((error as Error).message);
+        console.error('CRITICAL BOOTSTRAP FAILURE:', error);
+        setErrorMessage(`Bootstrap failed: ${(error as Error).message}. Check console for details.`);
       } finally {
         setLoading(false);
       }
@@ -232,24 +250,24 @@ export default function DashboardPage() {
           />
         )}
         {activeTab === 'runs' && (
-        <RunsTab
-          runs={runs}
-          loading={loading}
-          selectedRunId={selectedRunId}
-          onSelectRun={setSelectedRunId}
-          datasets={datasets}
-          supportedModels={supportedModels}
-          selectedProjectId={selectedProjectId}
-          onRunCreated={(run) => {
-            setRuns((prev) => [run, ...prev]);
-            if (selectedProjectId) void refreshRuns(selectedProjectId);
-          }}
-          onRefreshRuns={() => {
-            if (selectedProjectId) void refreshRuns(selectedProjectId);
-          }}
-          onError={setErrorMessage}
-          onSuccess={setSuccessMessage}
-        />
+          <RunsTab
+            runs={runs}
+            loading={loading}
+            selectedRunId={selectedRunId}
+            onSelectRun={setSelectedRunId}
+            datasets={datasets}
+            supportedModels={supportedModels}
+            selectedProjectId={selectedProjectId}
+            onRunCreated={(run) => {
+              setRuns((prev) => [run, ...prev]);
+              if (selectedProjectId) void refreshRuns(selectedProjectId);
+            }}
+            onRefreshRuns={() => {
+              if (selectedProjectId) void refreshRuns(selectedProjectId);
+            }}
+            onError={setErrorMessage}
+            onSuccess={setSuccessMessage}
+          />
         )}
         {activeTab === 'datasets' && (
           <DatasetsTab
@@ -271,7 +289,7 @@ export default function DashboardPage() {
               // Refresh model catalog after successful registration
               void refreshModelCatalog();
             }}
-            onFineTunePrefill={(model, datasetId) => {
+            onFineTunePrefill={(model: SupportedModel | RegisteredModel, datasetId?: number) => {
               setStatusMessage(`Prefilled run form for ${'model_name' in model ? model.model_name : model.name}.`);
             }}
             onOpenRunsTab={() => setActiveTab('runs')}

@@ -1,15 +1,45 @@
+# Core framework
 fastapi
 uvicorn[standard]
+pydantic-settings
+
+# Database
 sqlalchemy
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Task queue
+celery[redis]==5.3.4
+
+# Environment & Configuration
 python-dotenv
+
+# Security
+cryptography
+passlib[bcrypt]==1.7.4
+slowapi==0.1.9
+
+# Monitoring & Logging
+loguru==0.7.2
+sentry-sdk[fastapi]==1.40.0
+prometheus-fastapi-instrumentator==6.1.0
+
+# ML & Training
 torch
 tinker
 chz
 blobfile
-pandas
-huggingface-hub
-cryptography
 textarena
 datasets
 numpy
 scipy
+
+# Data processing
+pandas
+
+# External integrations
+huggingface-hub
+
+# Utilities
+termcolor
+pylatexenc

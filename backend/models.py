@@ -68,6 +68,7 @@ class Run(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     log_path = Column(String, nullable=True)
+    celery_task_id = Column(String, nullable=True, index=True)  # Celery task ID for tracking background jobs
 
     project = relationship("Project", back_populates="runs")
     dataset = relationship("Dataset")

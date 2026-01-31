@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Upload, AlertCircle, CheckCircle, ExternalLink } from "lucide-react";
+import { deployToHuggingFace } from "@/lib/api";
 
 interface DeployToHFModalProps {
   checkpointId: number;
@@ -62,29 +63,13 @@ export function DeployToHFModal({
     setErrorMessage("");
 
     try {
-      const response = await fetch(
-        `http://127.0.0.1:8000/checkpoints/${checkpointId}/deploy/huggingface`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            repo_name: repoName,
-            private: isPrivate,
-            merge_weights: mergeWeights,
-            create_inference_endpoint: false,
-          }),
-        }
-      );
+      const data = await deployToHuggingFace(checkpointId, {
+        repo_name: repoName,
+        private: isPrivate,
+        merge_weights: mergeWeights,
+        create_inference_endpoint: false,
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to deploy model");
-      }
-
-      const data = await response.json();
       setRepoUrl(data.repo_url);
       setDeploymentStatus("success");
 

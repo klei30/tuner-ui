@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class MessageResponse(BaseModel):
@@ -66,9 +66,9 @@ class RunConfig(BaseModel):
     renderer_name: Optional[str] = Field(
         None, description="Renderer/chat template to use"
     )
-    dataset: Optional[dict[str, Any]] = Field(
+    dataset: Optional[Union[dict[str, Any], str]] = Field(
         default=None,
-        description="Dataset specification (type, name, parameters)",
+        description="Dataset specification (type, name, parameters) or dataset name string",
     )
     hyperparameters: dict[str, Any] = Field(
         default_factory=dict,
@@ -90,6 +90,14 @@ class RunConfig(BaseModel):
     eval_datasets: Optional[list[str]] = Field(
         default_factory=list, description="Datasets to evaluate on"
     )
+
+    @field_validator("dataset", mode="before")
+    @classmethod
+    def convert_dataset_string_to_dict(cls, v):
+        """Convert legacy string dataset names to dict format for backward compatibility."""
+        if isinstance(v, str):
+            return {"name": v, "type": "builtin"}
+        return v
 
 
 class RunBase(BaseModel):

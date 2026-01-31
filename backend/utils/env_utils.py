@@ -40,27 +40,34 @@ def get_required_env(key: str, context: str = "operation") -> str:
     return value
 
 
-def setup_training_environment(api_key: Optional[str] = None) -> None:
+def setup_training_environment(api_key: Optional[str] = None, hf_token: Optional[str] = None) -> None:
     """
     Setup environment variables required for training.
 
-    Sets up TINKER_API_KEY and PYTHONIOENCODING for training operations.
+    Sets up TINKER_API_KEY, HF_TOKEN, and PYTHONIOENCODING for training operations.
 
     Args:
         api_key: Optional API key to use. If None, reads from environment.
+        hf_token: Optional HuggingFace token for gated models. If provided,
+                  will be set as HF_TOKEN environment variable.
 
     Raises:
         EnvironmentError: If API key is not provided and not in environment
 
     Example:
         >>> setup_training_environment()  # Uses env var
-        >>> setup_training_environment("my-key")  # Uses provided key
+        >>> setup_training_environment("my-key", "hf_xxx")  # Uses provided keys
     """
     if api_key is None:
         api_key = get_required_env("TINKER_API_KEY", "training")
 
     os.environ["TINKER_API_KEY"] = api_key
     os.environ["PYTHONIOENCODING"] = "utf-8"
+
+    # Set HuggingFace token if provided (for gated models like Llama)
+    if hf_token:
+        os.environ["HF_TOKEN"] = hf_token
+        os.environ["HUGGING_FACE_HUB_TOKEN"] = hf_token
 
 
 def get_optional_env(key: str, default: str = "") -> str:
