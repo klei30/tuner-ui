@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text, Float
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -141,10 +141,8 @@ class Deployment(Base):
     hf_repo_name = Column(String)
     hf_repo_url = Column(String)
     hf_model_id = Column(String)
-    is_private = Column(Integer, default=0)  # SQLite uses 0/1 for boolean
-
-    # Deployment configuration
-    merged_weights = Column(Integer, default=1)  # Whether LoRA was merged
+    is_private = Column(Boolean, default=False)
+    merged_weights = Column(Boolean, default=True)
 
     # Status tracking
     status = Column(String, default="pending")  # pending, uploading, completed, failed

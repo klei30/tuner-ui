@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import logging
@@ -885,14 +886,16 @@ async def download_checkpoint(
         future = rest_client.get_checkpoint_archive_url_from_tinker_path(
             checkpoint.tinker_path
         )
-        checkpoint_archive_url_response = future.result()
+        loop = asyncio.get_event_loop()
+        checkpoint_archive_url_response = await loop.run_in_executor(None, future.result)
 
         # Return signed URL and expiration
+        expires_val = checkpoint_archive_url_response.expires_at
         return {
             "download_url": checkpoint_archive_url_response.url,
-            "expires_at": checkpoint_archive_url_response.expires.isoformat()
-            if hasattr(checkpoint_archive_url_response.expires, "isoformat")
-            else str(checkpoint_archive_url_response.expires),
+            "expires_at": expires_val.isoformat()
+            if hasattr(expires_val, "isoformat")
+            else str(expires_val),
             "checkpoint_path": checkpoint.tinker_path,
             "filename": f"checkpoint_{checkpoint_id}.tar",
         }
@@ -1201,7 +1204,7 @@ def register_model(
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat_with_model(
+async def chat_with_model(
     request: ChatRequest,
     db: Session = Depends(get_db),
 ) -> ChatResponse:
@@ -1283,14 +1286,24 @@ def chat_with_model(
         if TINKER_AVAILABLE:
             try:
                 print(f"[CHAT] Creating SimpleChatClient...", flush=True)
-                client = SimpleChatClient(base_model=base_model)
-                client.initialize()
+                _prompt = request.prompt
+                _max_tokens = request.max_tokens or 256
+                _temperature = request.temperature or 0.7
+
+                def _run_chat():
+                    client = SimpleChatClient(base_model=base_model)
+                    client.initialize()
+                    return client.chat(
+                        prompt=_prompt,
+                        max_tokens=_max_tokens,
+                        temperature=_temperature,
+                    )
 
                 print(f"[CHAT] Generating response...", flush=True)
-                response_text = client.chat(
-                    prompt=request.prompt,
-                    max_tokens=request.max_tokens or 256,
-                    temperature=request.temperature or 0.7,
+                loop = asyncio.get_event_loop()
+                response_text = await asyncio.wait_for(
+                    loop.run_in_executor(None, _run_chat),
+                    timeout=60.0,
                 )
 
                 print(f"[CHAT] SUCCESS! Real inference completed!", flush=True)
@@ -1363,7 +1376,50 @@ async def sample_model(
         flush=True,
     )
 
-    # Enhanced simulation that shows which model is selected
+    if TINKER_AVAILABLE:
+        try:
+            from tinker.types import SamplingParams as TinkerSamplingParams, ModelInput
+
+            sp = payload.sampling_params
+            tinker_params = TinkerSamplingParams(
+                max_tokens=sp.max_tokens if sp else 256,
+                temperature=sp.temperature if sp else 0.7,
+                stop=sp.stop if sp else [],
+            )
+
+            def _do_sample() -> list[SampleSequence]:
+                service_client = tinker.ServiceClient()
+                # Use model_path for registered/fine-tuned models; base models use base_model=
+                is_base = "/" in model_path and not model_path.startswith("tinker://")
+                if is_base:
+                    sampling_client = service_client.create_sampling_client(base_model=model_path)
+                else:
+                    sampling_client = service_client.create_sampling_client(model_path=model_path)
+
+                result = sampling_client.sample(
+                    prompt=payload.prompt,
+                    sampling_params=tinker_params,
+                    num_samples=1,
+                ).result()
+
+                return [
+                    SampleSequence(text=seq.tokens_as_text() if hasattr(seq, "tokens_as_text") else payload.prompt, tokens=seq.tokens)
+                    for seq in result.sequences
+                ]
+
+            loop = asyncio.get_event_loop()
+            sequences = await loop.run_in_executor(None, _do_sample)
+
+            return SampleResponse(
+                model=model_path,
+                prompt=payload.prompt,
+                sequences=sequences,
+                sampling_params=payload.sampling_params,
+            )
+        except Exception as e:
+            print(f"DEBUG: Tinker sample failed: {e}, falling back to simulation", flush=True)
+
+    # Simulation fallback
     model_name = "Unknown Model"
     if payload.model_id:
         entry = db.get(ModelRegistry, payload.model_id)
@@ -1372,9 +1428,8 @@ async def sample_model(
     elif payload.model_path:
         model_name = payload.model_path.split("/")[-1]
 
-    print(f"DEBUG: Sample simulation for model: {model_name}", flush=True)
     base_response = _simulate_model_response(
-        payload.prompt, payload.sampling_params.max_tokens - 50
+        payload.prompt, (payload.sampling_params.max_tokens if payload.sampling_params else 256) - 50
     )
     generated_text = f"[Sample from {model_name}] {base_response}"
     sequence = SampleSequence(
@@ -1643,10 +1698,10 @@ async def evaluate_run(
                 status_code=400, detail="Base model not found in run configuration"
             )
 
-        # Create sampling client using tinker_cookbook
+        # Create sampling client — pass model_path for fine-tuned, base_model for base-only
         service_client = tinker.ServiceClient()
         sampling_client = service_client.create_sampling_client(
-            model_path=trained_model_path, base_model=base_model
+            model_path=trained_model_path
         )
 
         # Get renderer name from config
@@ -1689,15 +1744,16 @@ async def evaluate_run(
                         stop=renderer.get_stop_sequences(),
                     ),
                 )
-                result = future.result()
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, future.result)
 
                 if result.sequences:
                     response_tokens = result.sequences[0].tokens
-                    # Use renderer to parse the response properly
-                    parsed_messages = renderer.parse_response(response_tokens)
+                    # parse_response returns (message_dict, parse_success)
+                    parsed_message, parse_success = renderer.parse_response(response_tokens)
 
-                    if parsed_messages:
-                        response_text = parsed_messages[0]["content"]
+                    if parse_success and parsed_message:
+                        response_text = parsed_message["content"]
                     else:
                         response_text = tokenizer.decode(response_tokens)
 
@@ -1729,6 +1785,8 @@ async def evaluate_run(
                 )
 
         # Save evaluation results
+        if not run.log_path:
+            raise HTTPException(status_code=400, detail="Run has no log path for saving results")
         eval_results_file = Path(run.log_path).parent.parent / "evaluation_results.json"
         eval_results_file.parent.mkdir(parents=True, exist_ok=True)
         with open(eval_results_file, "w") as f:
@@ -1807,8 +1865,8 @@ def get_visualization_data(
 
     # Get evaluation data if available
     eval_data = None
-    eval_file = Path(run.log_path).parent.parent / "evaluation_results.json"
-    if eval_file.exists():
+    eval_file = Path(run.log_path).parent.parent / "evaluation_results.json" if run.log_path else None
+    if eval_file and eval_file.exists():
         try:
             with open(eval_file, "r") as f:
                 eval_data = json.load(f)
@@ -2015,7 +2073,8 @@ async def deploy_checkpoint_to_hf_background(
                     future = rest_client.get_checkpoint_archive_url_from_tinker_path(
                         checkpoint.tinker_path
                     )
-                    checkpoint_archive_url_response = future.result()
+                    loop = asyncio.get_event_loop()
+                    checkpoint_archive_url_response = await loop.run_in_executor(None, future.result)
 
                     # Download the checkpoint archive
                     download_url = checkpoint_archive_url_response.url

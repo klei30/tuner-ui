@@ -223,8 +223,8 @@ class ChatInferenceClient:
             # Build messages
             messages = []
             if system_prompt:
-                messages.append(renderers.Message(role="system", content=system_prompt))
-            messages.append(renderers.Message(role="user", content=prompt))
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
 
             # Build model input using renderer
             model_input = self.renderer.build_generation_prompt(messages)
@@ -248,11 +248,11 @@ class ChatInferenceClient:
             if response and response.sequences:
                 tokens = response.sequences[0].tokens
 
-                # Parse response using renderer
-                parsed_messages = self.renderer.parse_response(tokens)
+                # parse_response returns (message_dict, parse_success)
+                parsed_message, parse_success = self.renderer.parse_response(tokens)
 
-                if parsed_messages:
-                    response_text = parsed_messages[0]["content"]
+                if parse_success and parsed_message:
+                    response_text = parsed_message["content"]
                     logger.info(f"Generated response: {response_text[:100]}...")
                     return response_text
                 else:

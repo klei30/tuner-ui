@@ -42,7 +42,7 @@ export function DashboardShell({ children, sidebar, topbar }: DashboardShellProp
             <X className="h-5 w-5" />
           </Button>
         </div>
-        {sidebar ?? <Sidebar />}
+        {sidebar}
       </aside>
 
       <div className="flex h-full flex-1 flex-col overflow-hidden">

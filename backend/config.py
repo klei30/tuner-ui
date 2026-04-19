@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -49,11 +49,31 @@ class Settings(BaseSettings):
     sentry_dsn: Optional[str] = None  # Sentry error tracking
     environment: str = "development"  # development, staging, production
 
-    # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
+    # CORS - typed as Any so pydantic_settings skips its own JSON pre-decoding;
+    # the parse_list_from_env validator below converts to list[str]
+    cors_origins: Any = ["http://localhost:3000", "http://localhost:3001"]
     cors_allow_credentials: bool = True
-    cors_allow_methods: list[str] = ["*"]
-    cors_allow_headers: list[str] = ["*"]
+    cors_allow_methods: Any = ["*"]
+    cors_allow_headers: Any = ["*"]
+
+    @field_validator("cors_origins", "cors_allow_methods", "cors_allow_headers", mode="before")
+    @classmethod
+    def parse_list_from_env(cls, v):
+        """Accept comma-separated strings, JSON arrays, or empty values."""
+        import json as _json
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("["):
+                try:
+                    return _json.loads(v)
+                except _json.JSONDecodeError:
+                    pass
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
 
     # File paths
     artifacts_dir: Path = Path("artifacts")

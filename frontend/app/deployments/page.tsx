@@ -29,6 +29,7 @@ export default function DeploymentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasDataRef = useRef(false);
 
   const fetchDeployments = useCallback(async (retryCount = 0) => {
     console.log("[Deployments] Fetching...");
@@ -58,6 +59,7 @@ export default function DeploymentsPage() {
 
       const data = await response.json();
       console.log("Deployments data:", data);
+      hasDataRef.current = true;
       setDeployments(data);
       setError(null);
 
@@ -83,7 +85,7 @@ export default function DeploymentsPage() {
       console.error("[Deployments] Error:", err);
 
       // Only show error if we don't have deployments yet
-      if (deployments.length === 0) {
+      if (!hasDataRef.current) {
         setError(`Failed to connect to backend: ${err.message || "Network error"}. Make sure backend is running.`);
       } else {
         console.warn("[Deployments] Polling failed, will retry on next interval");
@@ -92,7 +94,7 @@ export default function DeploymentsPage() {
       console.log("[Deployments] Setting isLoading to false");
       setIsLoading(false);
     }
-  }, [deployments.length]);
+  }, []);
 
   // Initial fetch and cleanup
   useEffect(() => {

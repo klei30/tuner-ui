@@ -247,6 +247,7 @@ class SampleParams(BaseModel):
     max_tokens: int = 256
     temperature: float = 0.7
     top_p: float = 0.95
+    top_k: int = -1
     stop: list[str] = Field(default_factory=list)
 
 

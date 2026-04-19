@@ -70,7 +70,7 @@ export function DeployToHFModal({
         create_inference_endpoint: false,
       });
 
-      setRepoUrl(data.repo_url);
+      setRepoUrl(data.repo_url ?? '');
       setDeploymentStatus("success");
 
       // Close modal and redirect to deployments page after short delay

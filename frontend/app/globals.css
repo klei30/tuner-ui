@@ -122,3 +122,84 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Design-system tokens ───────────────────────────────────────────────── */
+:root {
+  /* Light theme */
+  --bg:          #f0f0f8;
+  --surf:        #ffffff;
+  --surf2:       #f5f5fc;
+  --surf3:       #ebebf5;
+  --border-col:  #dcdce8;
+  --text:        #1a1a2e;
+  --sub:         #5a5a7a;
+  --muted-text:  #9494aa;
+  --acc:         #5c5fff;
+  --ok:          #2dba7a;
+  --warn:        #e69520;
+  --err:         #e8304a;
+  --blue:        #2563eb;
+  --purple:      #7c3aed;
+  --shadow:      0 4px 24px rgba(0,0,0,.10);
+  --shadow-c:    0 2px 10px rgba(0,0,0,.08);
+}
+
+.dark {
+  /* Dark theme */
+  --bg:          #08080d;
+  --surf:        #0f0f17;
+  --surf2:       #14141f;
+  --surf3:       #1a1a28;
+  --border-col:  #1f1f30;
+  --text:        #e8e8f0;
+  --sub:         #9494a8;
+  --muted-text:  #5a5a70;
+  --acc:         #6c6fff;
+  --ok:          #3ecf8e;
+  --warn:        #f5a623;
+  --err:         #ff4d6d;
+  --blue:        #3b82f6;
+  --purple:      #8b5cf6;
+  --shadow:      0 4px 32px rgba(0,0,0,.45);
+  --shadow-c:    0 2px 12px rgba(0,0,0,.3);
+}
+
+/* ── Keyframes ──────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+@keyframes gradFlow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.4s linear infinite;
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.35s ease-out both;
+}

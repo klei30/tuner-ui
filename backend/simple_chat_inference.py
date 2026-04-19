@@ -7,6 +7,8 @@ from typing import Optional
 import tinker
 from tinker.types import SamplingParams, ModelInput
 from tinker_cookbook.tokenizer_utils import get_tokenizer
+from tinker_cookbook import renderers as _renderers
+from tinker_cookbook.model_info import get_recommended_renderer_name
 
 class SimpleChatClient:
     """Simple synchronous chat client that works"""
@@ -46,14 +48,17 @@ class SimpleChatClient:
         if not self.tokenizer:
             self.initialize()
 
-        # Build full prompt
+        # Build prompt using cookbook renderer for correct chat template
+        renderer_name = get_recommended_renderer_name(self.base_model)
+        renderer = _renderers.get_renderer(renderer_name, self.tokenizer)
+        messages = []
         if system_prompt:
-            full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
-        else:
-            full_prompt = f"User: {prompt}\nAssistant:"
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        full_prompt = renderer.build_generation_prompt(messages)
 
         print(f"[SimpleChatClient] Encoding prompt...", flush=True)
-        prompt_tokens = self.tokenizer.encode(full_prompt, add_special_tokens=True)
+        prompt_tokens = self.tokenizer.encode(full_prompt, add_special_tokens=False)
         model_input = ModelInput.from_ints(prompt_tokens)
 
         # Create sampling params
