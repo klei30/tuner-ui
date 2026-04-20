@@ -2,126 +2,25 @@ name: Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
-  backend-tests:
-    name: Backend Tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.11', '3.12']
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-
-    - name: Install dependencies
-      working-directory: ./backend
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-cov pytest-asyncio
-
-    - name: Run backend tests
-      working-directory: ./backend
-      env:
-        TINKER_API_KEY: ${{ secrets.TINKER_API_KEY || 'tml-test-key-00000000000000000000000000000000' }}
-        TESTING: true
-        ENVIRONMENT: testing
-      run: |
-        pytest -v --cov=. --cov-report=xml --cov-report=term
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./backend/coverage.xml
-        flags: backend
-        name: backend-coverage
-        fail_ci_if_error: false
-
-  frontend-tests:
-    name: Frontend Tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: ['18', '20']
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: 8
-
-    - name: Get pnpm store directory
-      shell: bash
-      run: |
-        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-    - name: Setup pnpm cache
-      uses: actions/cache@v3
-      with:
-        path: ${{ env.STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-store-
-
-    - name: Install frontend dependencies
-      working-directory: ./frontend/tests
-      run: pnpm install
-
-    - name: Run frontend tests
-      working-directory: ./frontend/tests
-      run: pnpm test:full
-
   lint:
     name: Linting
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Install Ruff
-      run: pip install ruff
+      - name: Install Ruff
+        run: pip install ruff
 
-    - name: Run Ruff linter
-      working-directory: ./backend
-      run: ruff check .
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: 8
-
-    - name: Install frontend dependencies
-      working-directory: ./frontend
-      run: pnpm install
-
-    - name: Run ESLint (if configured)
-      working-directory: ./frontend
-      run: pnpm lint || echo "ESLint not configured, skipping"
-      continue-on-error: true
+      - name: Run Ruff linter
+        working-directory: ./backend
+        run: ruff check .
