@@ -3,11 +3,10 @@ Test configuration and utilities for comprehensive test suite.
 """
 
 import pytest
-import os
 import sys
 from pathlib import Path
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, MagicMock
+from unittest.mock import Mock, AsyncMock
 import tempfile
 import asyncio
 

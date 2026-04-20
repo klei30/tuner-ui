@@ -4,7 +4,6 @@ Includes health checks, Sentry integration, and Prometheus metrics
 """
 from datetime import datetime
 from typing import Dict, Any
-import os
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -128,7 +127,7 @@ def get_detailed_health_status(db: Session) -> Dict[str, Any]:
         health["components"]["tinker"] = tinker_health
         if tinker_health["status"] != "healthy":
             health["status"] = "degraded" if health["status"] == "healthy" else health["status"]
-    except:
+    except Exception:
         health["components"]["tinker"] = {"status": "unavailable"}
 
     return health

@@ -2,8 +2,7 @@
 Tests for hyperparameter calculation functionality.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from backend.utils.hyperparam_calculator import HyperparamCalculator
 
 

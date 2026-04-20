@@ -264,7 +264,7 @@ def deploy_to_huggingface(
                         tar.extractall(checkpoint_path)
 
                     checkpoint_downloaded = True
-                    logger.info(f"Successfully downloaded checkpoint")
+                    logger.info("Successfully downloaded checkpoint")
 
                 except Exception as e:
                     logger.error(f"Failed to download checkpoint: {e}")
@@ -328,7 +328,6 @@ def cleanup_old_results() -> dict:
         dict with cleanup statistics
     """
     try:
-        from celery.result import AsyncResult
         from datetime import timedelta
 
         # Clean up results older than 24 hours

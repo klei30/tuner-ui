@@ -23,8 +23,6 @@ import os
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime
-import asyncio
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -39,7 +37,6 @@ from utils.env_utils import (
     EnvironmentError
 )
 from utils.recipe_executor import RecipeExecutor, create_recipe_executor
-from models import Run
 
 
 # ============================================================================
@@ -207,23 +204,23 @@ class TestEnvUtils:
         """Test validating valid API key."""
         valid_key = "tml-1234567890abcdefghijklmnopqrstuvwxyz"
 
-        assert validate_api_key(valid_key) == True
+        assert validate_api_key(valid_key) is True
 
     def test_validate_api_key_invalid_prefix(self):
         """Test validating key with invalid prefix."""
         invalid_key = "invalid-1234567890abcdefghijklmnopqrstuvwxyz"
 
-        assert validate_api_key(invalid_key) == False
+        assert validate_api_key(invalid_key) is False
 
     def test_validate_api_key_too_short(self):
         """Test validating key that's too short."""
         short_key = "tml-short"
 
-        assert validate_api_key(short_key) == False
+        assert validate_api_key(short_key) is False
 
     def test_validate_api_key_empty(self):
         """Test validating empty key."""
-        assert validate_api_key("") == False
+        assert validate_api_key("") is False
 
     def test_setup_test_environment(self, monkeypatch):
         """Test setup test environment."""

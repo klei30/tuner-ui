@@ -18,7 +18,7 @@ Usage:
 
 import pytest
 import os
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock
 from datetime import datetime
 
 # Import modules to test
@@ -26,8 +26,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from job_runner import JobRunner
-from models import Run, Dataset, Project, User
-from schemas import RunConfig
+from models import Run, Dataset
 
 
 # ============================================================================
@@ -361,7 +360,7 @@ class TestPerformance:
         import time
 
         start = time.time()
-        config = job_runner.build_sft_config(sample_run, "yahma/alpaca-cleaned")
+        job_runner.build_sft_config(sample_run, "yahma/alpaca-cleaned")
         duration = time.time() - start
 
         # Should complete in under 100ms

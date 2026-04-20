@@ -1,27 +1,27 @@
 import chz
 import sys
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
 # Load environment variables from multiple possible locations
 load_dotenv()  # Load from current directory
 if "TINKER_ENV_FILE" in os.environ:
     load_dotenv(os.environ["TINKER_ENV_FILE"])  # Load from specified file
 
-import datasets
-from tinker_cookbook import cli_utils, model_info
-from tinker_cookbook.renderers import TrainOnWhat
-from tinker_cookbook.supervised.data import (
+import datasets  # noqa: E402
+from tinker_cookbook import cli_utils, model_info  # noqa: E402
+from tinker_cookbook.renderers import TrainOnWhat  # noqa: E402
+from tinker_cookbook.supervised.data import (  # noqa: E402
     SupervisedDatasetFromHFDataset,
     conversation_to_datum,
 )
-from tinker_cookbook.supervised.types import (
+from tinker_cookbook.supervised.types import (  # noqa: E402
     ChatDatasetBuilderCommonConfig,
     ChatDatasetBuilder,
 )
-from tinker_cookbook.supervised import train
-from tinker_cookbook.hyperparam_utils import get_lr
-import asyncio
+from tinker_cookbook.supervised import train  # noqa: E402
+from tinker_cookbook.hyperparam_utils import get_lr  # noqa: E402
+import asyncio  # noqa: E402
 
 
 def build_config_blueprint() -> chz.Blueprint[train.Config]:

@@ -3,16 +3,14 @@ On-Policy Distillation Recipe - Learn from teacher models via KL divergence
 Supports DeepMath and Tulu3 datasets for reasoning and chat distillation
 """
 
-import asyncio
 import os
-import chz
 import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tinker_cookbook import cli_utils, model_info
+from tinker_cookbook import model_info
 from tinker_cookbook.distillation import train_on_policy
 from tinker_cookbook.distillation.datasets import (
     DistillationDatasetConfig,

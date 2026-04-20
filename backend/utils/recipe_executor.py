@@ -9,7 +9,6 @@ reducing ~450 lines of duplication to a single reusable pattern.
 """
 
 import asyncio
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Awaitable, Optional
@@ -190,7 +189,6 @@ class RecipeExecutor:
             metrics_path: Path to metrics.jsonl file
         """
         import json
-        import re
 
         last_position = 0
         metrics = []
@@ -281,7 +279,7 @@ class RecipeExecutor:
                             metric_dict[key] = float(value) if value else 0.0
                         else:
                             metric_dict[key] = value
-            except:
+            except Exception:
                 pass
 
         # Also parse general patterns

@@ -19,8 +19,6 @@ Usage:
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-import json
 
 import sys
 import os
@@ -43,7 +41,7 @@ class TestDatasetFormatDetection:
         # Check for Alpaca format keys
         is_alpaca = "instruction" in sample and "output" in sample
 
-        assert is_alpaca == True
+        assert is_alpaca is True
 
     def test_detect_messages_format(self, messages_format_data):
         """Test detecting messages format."""
@@ -52,7 +50,7 @@ class TestDatasetFormatDetection:
         # Check for messages format
         is_messages = "messages" in sample
 
-        assert is_messages == True
+        assert is_messages is True
 
     def test_detect_unsupported_format(self):
         """Test detecting unsupported format."""
@@ -64,8 +62,8 @@ class TestDatasetFormatDetection:
         is_alpaca = "instruction" in unsupported
         is_messages = "messages" in unsupported
 
-        assert is_alpaca == False
-        assert is_messages == False
+        assert is_alpaca is False
+        assert is_messages is False
 
 
 # ============================================================================
@@ -324,7 +322,7 @@ class TestDatasetValidation:
     def test_validate_dataset_missing_spec(self):
         """Test validating dataset with missing spec."""
         with pytest.raises((ValueError, TypeError)):
-            dataset = Dataset(
+            Dataset(
                 name="invalid-data",
                 kind="huggingface",
                 spec=None  # Missing spec
@@ -562,8 +560,8 @@ class TestDatasetPreview:
         }
 
         assert format_info["format"] == "alpaca"
-        assert format_info["has_instruction"] == True
-        assert format_info["has_messages"] == False
+        assert format_info["has_instruction"] is True
+        assert format_info["has_messages"] is False
 
 
 # ============================================================================

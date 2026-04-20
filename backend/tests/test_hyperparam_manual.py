@@ -2,12 +2,8 @@
 Test the hyperparameter calculation feature end-to-end.
 """
 
-import pytest
-import subprocess
 import sys
-import time
 import requests
-from pathlib import Path
 
 
 def test_hyperparam_calculation_e2e():

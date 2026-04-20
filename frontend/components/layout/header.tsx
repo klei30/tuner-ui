@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu, Search, Bell, Sun, Moon, ChevronDown, Check, Plus } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import type { Project } from '@/lib/api';
@@ -16,9 +16,11 @@ interface HeaderProps {
 }
 
 export function Header({ collapsed, setCollapsed, projects, selectedProjectId, onSelectProject, onCreateProject, onCmd }: HeaderProps) {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [dropOpen, setDropOpen] = useState(false);
-  const dark = theme === 'dark';
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const dark = resolvedTheme === 'dark';
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   return (
@@ -28,15 +30,6 @@ export function Header({ collapsed, setCollapsed, projects, selectedProjectId, o
       display: 'flex', alignItems: 'center',
       padding: '0 12px', gap: 0, flexShrink: 0, zIndex: 20,
     }}>
-      {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 14 }}>
-        <img src="/favicon.png" alt="Tuner UI" style={{ width: 28, height: 28, borderRadius: 7 }} />
-        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em' }}>Tuner</span>
-      </div>
-
-      {/* Divider */}
-      <div style={{ width: 1, height: 20, background: 'var(--border-col)', marginRight: 12 }} />
-
       {/* Hamburger */}
       <button
         onClick={() => setCollapsed(!collapsed)}
@@ -135,12 +128,14 @@ export function Header({ collapsed, setCollapsed, projects, selectedProjectId, o
         </button>
 
         {/* Dark/light toggle */}
-        <button
-          onClick={() => setTheme(dark ? 'light' : 'dark')}
-          style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--surf2)', border: '1px solid var(--border-col)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          {dark ? <Sun size={15} color="var(--sub)" /> : <Moon size={15} color="var(--sub)" />}
-        </button>
+        {mounted && (
+          <button
+            onClick={() => setTheme(dark ? 'light' : 'dark')}
+            style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--surf2)', border: '1px solid var(--border-col)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {dark ? <Sun size={15} color="var(--sub)" /> : <Moon size={15} color="var(--sub)" />}
+          </button>
+        )}
       </div>
     </div>
   );

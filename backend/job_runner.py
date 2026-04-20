@@ -17,13 +17,13 @@ from sqlalchemy.orm import Session
 
 # Import database models
 from database import SessionLocal
-from models import Run, Checkpoint, Dataset, User
+from models import Run, Checkpoint, Dataset
 from config import settings
 from utils.encryption import decrypt_token
 
 # Import Tinker API
 try:
-    import tinker
+    import tinker as _tinker  # noqa: F401
 
     TINKER_AVAILABLE = True
 except ImportError as e:
@@ -33,7 +33,7 @@ except ImportError as e:
 # Import training modules
 import chz
 import datasets
-from tinker_cookbook import model_info, hyperparam_utils, renderers
+from tinker_cookbook import model_info, hyperparam_utils
 from tinker_cookbook.renderers import TrainOnWhat
 from tinker_cookbook.supervised.data import (
     SupervisedDatasetFromHFDataset,
@@ -48,7 +48,7 @@ from recipes import sft, dpo, rl, chat_sl, distillation, math_rl, on_policy_dist
 
 # Import new utility modules
 from utils.text_utils import strip_ansi_codes
-from utils.env_utils import setup_training_environment, get_required_env
+from utils.env_utils import setup_training_environment
 from utils.recipe_executor import create_recipe_executor
 
 ARTIFACTS_ROOT = Path("artifacts")
@@ -977,7 +977,7 @@ class JobRunner:
                                         )
                                     else:
                                         metric_dict[key] = value
-                        except (ValueError, IndexError) as e:
+                        except (ValueError, IndexError):
                             pass
 
                     # Also check for other metric patterns in logs
@@ -1095,7 +1095,7 @@ class JobRunner:
                                                 )
                                             else:
                                                 metric_dict[key] = value
-                                except:
+                                except Exception:
                                     pass
 
                             # Also parse general patterns

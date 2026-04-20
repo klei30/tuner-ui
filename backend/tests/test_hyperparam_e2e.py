@@ -2,7 +2,6 @@
 End-to-end tests for hyperparameter calculation feature.
 """
 
-import pytest
 import requests
 from typing import Dict, Any
 

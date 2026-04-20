@@ -19,17 +19,16 @@ Usage:
 """
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock
 from datetime import datetime
 from pathlib import Path
 import json
-import tempfile
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from models import Checkpoint, Run
+from models import Checkpoint
 
 
 # ============================================================================
@@ -59,7 +58,7 @@ class TestCheckpointCreation:
     def test_checkpoint_requires_run_id(self):
         """Test that checkpoint requires run_id."""
         with pytest.raises((TypeError, ValueError)):
-            checkpoint = Checkpoint(
+            Checkpoint(
                 step=1000,
                 metrics={},
                 path="/tmp/checkpoint"
@@ -68,7 +67,7 @@ class TestCheckpointCreation:
     def test_checkpoint_requires_step(self):
         """Test that checkpoint requires step number."""
         with pytest.raises((TypeError, ValueError)):
-            checkpoint = Checkpoint(
+            Checkpoint(
                 run_id=1,
                 metrics={},
                 path="/tmp/checkpoint"
@@ -157,7 +156,6 @@ class TestCheckpointStorage:
 
     def test_checkpoint_file_naming(self):
         """Test checkpoint file naming convention."""
-        run_id = 1
         step = 1000
 
         checkpoint_name = f"checkpoint-{step}"
@@ -416,7 +414,7 @@ class TestCheckpointErrorHandling:
     def test_handle_invalid_checkpoint_step(self):
         """Test handling invalid checkpoint step."""
         with pytest.raises((ValueError, TypeError)):
-            checkpoint = Checkpoint(
+            Checkpoint(
                 run_id=1,
                 step="invalid",  # Should be int
                 metrics={},

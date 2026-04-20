@@ -26,10 +26,10 @@ prometheus-fastapi-instrumentator==6.1.0
 
 # ML & Training
 torch
-tinker
-chz
+# tinker - internal package, install separately
+# chz - internal package, install separately
 blobfile
-textarena
+# textarena - optional, install separately
 datasets
 numpy
 scipy

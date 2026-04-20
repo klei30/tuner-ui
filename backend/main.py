@@ -5,7 +5,6 @@ import importlib.util
 import json
 import logging
 import os
-import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -17,9 +16,7 @@ from utils.text_utils import strip_ansi_codes
 
 # Import Tinker for inference
 try:
-    import tinker
-    from tinker import types
-    from tinker_cookbook.tokenizer_utils import get_tokenizer
+    import tinker  # noqa: F401
 
     TINKER_AVAILABLE = True
 except ImportError:
@@ -94,9 +91,8 @@ try:
     from .utils.file_utils import (
         ArtifactPathResolver,
         read_file_tail,
-        ensure_directory_exists,
     )
-    from .utils.json_utils import read_jsonl_file, parse_json_with_nan
+    from .utils.json_utils import read_jsonl_file
 except ImportError:
     from config import settings, setup_logging
     from database import Base, SessionLocal, engine, get_db
@@ -151,9 +147,8 @@ except ImportError:
     from utils.file_utils import (
         ArtifactPathResolver,
         read_file_tail,
-        ensure_directory_exists,
     )
-    from utils.json_utils import read_jsonl_file, parse_json_with_nan
+    from utils.json_utils import read_jsonl_file
 
 # Setup logging
 setup_logging()
@@ -164,8 +159,8 @@ TINKER_AVAILABLE = importlib.util.find_spec("tinker") is not None
 if TINKER_AVAILABLE:
     print("Tinker API available - using real training")
     try:
-        from tinker_cookbook.completers import TinkerMessageCompleter
-        from tinker_cookbook.renderers import get_renderer
+        from tinker_cookbook.completers import TinkerMessageCompleter  # noqa: F401
+        from tinker_cookbook.renderers import get_renderer  # noqa: F401
     except ImportError:
         TINKER_AVAILABLE = False
         print("Tinker cookbook not available")
@@ -174,7 +169,7 @@ else:
 
 # Import chat inference helper
 try:
-    from chat_inference import resolve_model_path, ChatInferenceClient
+    from chat_inference import resolve_model_path, ChatInferenceClient  # noqa: F401
 
     CHAT_INFERENCE_AVAILABLE = True
     print("chat_inference module loaded successfully")
@@ -184,7 +179,7 @@ except ImportError as e:
 
 # SECURITY: No default API key - must be set via environment variable
 API_KEY = os.getenv("TINKER_API_KEY")
-if not API_KEY and not os.getenv("ALLOW_ANON", "").lower() in {"1", "true", "yes"}:
+if not API_KEY and os.getenv("ALLOW_ANON", "").lower() not in {"1", "true", "yes"}:
     logger.error("CRITICAL: TINKER_API_KEY environment variable is not set!")
     logger.error(
         "Please set TINKER_API_KEY in your .env file or set ALLOW_ANON=true for testing"
@@ -584,7 +579,7 @@ async def validate_dataset(
 ) -> dict:
     """Validate dataset format using tinker_cookbook renderers"""
     try:
-        from tinker_cookbook.renderers import get_renderer, Message
+        from tinker_cookbook.renderers import get_renderer
         from tinker_cookbook.tokenizer_utils import get_tokenizer
         from tinker_cookbook.supervised.data import conversation_to_datum
         import datasets
@@ -1038,7 +1033,7 @@ async def calculate_all_hyperparameters(request: HyperparamRequest):
                     f"Calculated LR: {recommendations.get('learning_rate', 'unknown')}",
                 ),
                 "batch_size": f"Optimized for {request.recipe_type} training. Tinker docs recommend 128 or smaller for SFT.",
-                "lora_rank": f"Default is 32 for most use cases. Independent of learning rate.",
+                "lora_rank": "Default is 32 for most use cases. Independent of learning rate.",
                 "notes": metadata.get("notes", []),
                 "source": metadata.get("source", ""),
             },
@@ -1146,7 +1141,7 @@ async def estimate_training_cost(
         # Assuming ~1000 tokens/second throughput
         estimated_seconds = total_tokens / 1000
         estimated_minutes = estimated_seconds / 60
-        estimated_hours = estimated_minutes / 60
+        estimated_hours = estimated_minutes / 60  # noqa: F841
 
         return {
             "estimated_cost_usd": round(cost_usd, 2),
@@ -1216,7 +1211,7 @@ async def chat_with_model(
     - request.model_id: Chat with registered model
     - Neither: Chat with default model
     """
-    print(f"\n[CHAT] ========== NEW CHAT REQUEST ==========", flush=True)
+    print("\n[CHAT] ========== NEW CHAT REQUEST ==========", flush=True)
     print(
         f"[CHAT] Request: run_id={request.run_id}, model_id={request.model_id}",
         flush=True,
@@ -1285,7 +1280,7 @@ async def chat_with_model(
     try:
         if TINKER_AVAILABLE:
             try:
-                print(f"[CHAT] Creating SimpleChatClient...", flush=True)
+                print("[CHAT] Creating SimpleChatClient...", flush=True)
                 _prompt = request.prompt
                 _max_tokens = request.max_tokens or 256
                 _temperature = request.temperature or 0.7
@@ -1299,14 +1294,14 @@ async def chat_with_model(
                         temperature=_temperature,
                     )
 
-                print(f"[CHAT] Generating response...", flush=True)
+                print("[CHAT] Generating response...", flush=True)
                 loop = asyncio.get_event_loop()
                 response_text = await asyncio.wait_for(
                     loop.run_in_executor(None, _run_chat),
                     timeout=60.0,
                 )
 
-                print(f"[CHAT] SUCCESS! Real inference completed!", flush=True)
+                print("[CHAT] SUCCESS! Real inference completed!", flush=True)
                 print(f"[CHAT] Response preview: {response_text[:100]}...", flush=True)
 
             except Exception as e:
@@ -1315,14 +1310,14 @@ async def chat_with_model(
                 )
                 import traceback
 
-                print(f"[CHAT] Traceback:", flush=True)
+                print("[CHAT] Traceback:", flush=True)
                 traceback.print_exc()
-                print(f"[CHAT] Falling back to simulation", flush=True)
+                print("[CHAT] Falling back to simulation", flush=True)
                 response_text = (
                     f"[Simulated response from {model_name}] Echo: {request.prompt}"
                 )
         else:
-            print(f"[CHAT] Tinker not available, using simulation", flush=True)
+            print("[CHAT] Tinker not available, using simulation", flush=True)
             response_text = (
                 f"[Simulated response from {model_name}] Echo: {request.prompt}"
             )
@@ -1339,7 +1334,7 @@ async def chat_with_model(
     completion_tokens = len(response_text.split())
     total_tokens = prompt_tokens + completion_tokens
 
-    print(f"[CHAT] ========== CHAT REQUEST COMPLETE ==========\n", flush=True)
+    print("[CHAT] ========== CHAT REQUEST COMPLETE ==========\n", flush=True)
 
     return ChatResponse(
         response=response_text,
@@ -1378,7 +1373,7 @@ async def sample_model(
 
     if TINKER_AVAILABLE:
         try:
-            from tinker.types import SamplingParams as TinkerSamplingParams, ModelInput
+            from tinker.types import SamplingParams as TinkerSamplingParams
 
             sp = payload.sampling_params
             tinker_params = TinkerSamplingParams(
@@ -1970,8 +1965,6 @@ async def deploy_to_huggingface(
     db: Session = Depends(get_db),
 ):
     """Deploy checkpoint to HuggingFace Hub."""
-    from utils.encryption import decrypt_token
-    from services.huggingface_service import HuggingFaceService
 
     # 1. Verify user has HF token
     if not current_user.hf_token_encrypted:
@@ -2036,7 +2029,6 @@ async def deploy_checkpoint_to_hf_background(
     from utils.encryption import decrypt_token
     from services.huggingface_service import HuggingFaceService
     import tempfile
-    import shutil
     import requests
     import tarfile
 

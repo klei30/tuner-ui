@@ -22,18 +22,15 @@ Usage:
 
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from datetime import datetime
+from unittest.mock import Mock, patch, AsyncMock
 from pathlib import Path
 import tempfile
-import json
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from job_runner import JobRunner
-from models import Run, Dataset, Project
+from models import Run, Dataset
 from utils.recipe_executor import RecipeExecutor, create_recipe_executor
 
 
@@ -93,7 +90,7 @@ class TestSFTWorkflow:
         mock_session.get.return_value = sample_run
 
         # Mock dataset
-        mock_dataset = Dataset(
+        Dataset(
             id=1,
             name="alpaca-clean",
             kind="huggingface",
@@ -115,7 +112,7 @@ class TestSFTWorkflow:
             assert config.lr_schedule == "linear"
 
         # Verify training would be called
-        assert mock_tinker_training["sft"].called == False  # Not called yet in test
+        assert mock_tinker_training["sft"].called is False  # Not called yet in test
 
     async def test_sft_workflow_with_monitoring(
         self,
@@ -579,7 +576,6 @@ class TestProgressTracking:
         )
 
         # Parse metrics
-        from utils.recipe_executor import RecipeExecutor
         mock_session = Mock()
         mock_run = Mock(id=1)
         executor = RecipeExecutor(mock_session, mock_run, log_file)
@@ -610,7 +606,7 @@ class TestProgressTracking:
         log_file = temp_logs_dir / "run_1.log"
         log_file.touch()
 
-        executor = create_recipe_executor(mock_session, sample_run, log_file)
+        create_recipe_executor(mock_session, sample_run, log_file)
 
         # Simulate completion
         sample_run.progress = 1.0

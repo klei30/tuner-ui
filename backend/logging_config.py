@@ -96,7 +96,7 @@ def log_api_request(method: str, path: str, status_code: int, duration_ms: float
         user_id: Optional user ID
     """
     logger.info(
-        f"API Request",
+        "API Request",
         extra={
             "method": method,
             "path": path,

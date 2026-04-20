@@ -25,17 +25,17 @@ class SimpleChatClient:
 
         # Create service client
         self.service_client = tinker.ServiceClient()
-        print(f"[SimpleChatClient] ServiceClient created", flush=True)
+        print("[SimpleChatClient] ServiceClient created", flush=True)
 
         # Create sampling client for base model
         self.sampling_client = self.service_client.create_sampling_client(
             base_model=self.base_model
         )
-        print(f"[SimpleChatClient] SamplingClient created", flush=True)
+        print("[SimpleChatClient] SamplingClient created", flush=True)
 
         # Get tokenizer
         self.tokenizer = get_tokenizer(self.base_model)
-        print(f"[SimpleChatClient] Tokenizer loaded", flush=True)
+        print("[SimpleChatClient] Tokenizer loaded", flush=True)
 
     def chat(
         self,
@@ -57,7 +57,7 @@ class SimpleChatClient:
         messages.append({"role": "user", "content": prompt})
         full_prompt = renderer.build_generation_prompt(messages)
 
-        print(f"[SimpleChatClient] Encoding prompt...", flush=True)
+        print("[SimpleChatClient] Encoding prompt...", flush=True)
         prompt_tokens = self.tokenizer.encode(full_prompt, add_special_tokens=False)
         model_input = ModelInput.from_ints(prompt_tokens)
 
@@ -68,7 +68,7 @@ class SimpleChatClient:
             stop=["\n\nUser:", "\nUser:", "Assistant:"]
         )
 
-        print(f"[SimpleChatClient] Sampling from model...", flush=True)
+        print("[SimpleChatClient] Sampling from model...", flush=True)
         # Sample (synchronous - blocks until done)
         result = self.sampling_client.sample(
             prompt=model_input,
@@ -76,7 +76,7 @@ class SimpleChatClient:
             num_samples=1
         ).result()
 
-        print(f"[SimpleChatClient] Decoding response...", flush=True)
+        print("[SimpleChatClient] Decoding response...", flush=True)
         response_tokens = result.sequences[0].tokens
         response_text = self.tokenizer.decode(response_tokens, skip_special_tokens=True)
 

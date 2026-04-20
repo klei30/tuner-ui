@@ -5,7 +5,6 @@ Handles chat inference with both base models and fine-tuned models.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import Optional, Tuple

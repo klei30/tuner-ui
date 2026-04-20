@@ -22,16 +22,13 @@ Usage:
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime
-import json
+from unittest.mock import Mock, patch
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from main import app
-from models import User, Project, Dataset, Run, Checkpoint, Evaluation
 
 
 # ============================================================================

@@ -6,7 +6,6 @@ Common text processing utilities used across the backend.
 """
 
 import re
-from typing import Optional
 
 
 def strip_ansi_codes(text: str) -> str:

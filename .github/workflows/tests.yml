@@ -33,8 +33,9 @@ jobs:
     - name: Run backend tests
       working-directory: ./backend
       env:
-        TINKER_API_KEY: ${{ secrets.TINKER_API_KEY }}
+        TINKER_API_KEY: ${{ secrets.TINKER_API_KEY || 'tml-test-key-00000000000000000000000000000000' }}
         TESTING: true
+        ENVIRONMENT: testing
       run: |
         pytest -v --cov=. --cov-report=xml --cov-report=term
 

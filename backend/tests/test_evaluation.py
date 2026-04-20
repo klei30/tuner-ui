@@ -19,7 +19,7 @@ Usage:
 """
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import Mock, patch
 from datetime import datetime
 import json
 
@@ -118,7 +118,7 @@ class TestEvaluationCreation:
     def test_evaluation_requires_run_id(self):
         """Test that evaluation requires a run_id."""
         with pytest.raises((TypeError, ValueError)):
-            evaluation = Evaluation(
+            Evaluation(
                 evaluator_name="mmlu",
                 metrics={}
             )
@@ -365,7 +365,7 @@ class TestEvaluationErrorHandling:
         # Should raise error or return failure
         if not run.checkpoints:
             with pytest.raises((ValueError, IndexError)):
-                checkpoint_path = run.checkpoints[0].path
+                run.checkpoints[0].path
 
     @pytest.mark.asyncio
     async def test_handle_invalid_model_name(self):

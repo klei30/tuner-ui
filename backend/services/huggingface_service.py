@@ -2,11 +2,10 @@
 HuggingFace Hub integration service for model deployment.
 """
 
-from huggingface_hub import HfApi, create_repo, upload_folder
+from huggingface_hub import HfApi, create_repo
 from pathlib import Path
 import logging
 from typing import Optional, Dict, Any
-import uuid
 
 logger = logging.getLogger(__name__)
 
