@@ -13,7 +13,7 @@
 ---
 
 ## 🚨 Vibe Code Alert
-This project was 99% vibe coded as a fun Saturday hack to explore the Tinker Cookbook and see how quickly a full-featured training platform could be built. The result? A functional web UI that makes fine-tuning LLMs as easy as clicking a few buttons.
+This project was 99% vibe coded as a fun Saturday hack to explore the Tinker Cookbook and see how quickly a full-featured training platform could be built. The result? A functional web UI that mak[...]
 
 ## Demo Video
 Watch the complete demo: https://www.youtube.com/watch?v=qdnSWMPZri8
@@ -227,6 +227,17 @@ tuner-ui/
 4. Open a Pull Request
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
+## 📊 Repository Stats
+
+![GitHub stars](https://img.shields.io/github/stars/klei30/tuner-ui?style=flat-square&logo=github)
+![GitHub forks](https://img.shields.io/github/forks/klei30/tuner-ui?style=flat-square&logo=github)
+[![GitHub issues](https://img.shields.io/github/issues/klei30/tuner-ui?style=flat-square)](https://github.com/klei30/tuner-ui/issues)
+![GitHub last commit](https://img.shields.io/github/last-commit/klei30/tuner-ui?style=flat-square)
+
+📈 [View Traffic & Analytics](https://github.com/klei30/tuner-ui/graphs/traffic)
 
 ---
 
