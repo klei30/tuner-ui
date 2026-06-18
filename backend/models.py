@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text, Float
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from sqlalchemy.sql import func
 
 try:  # pragma: no cover
@@ -53,6 +53,11 @@ class Dataset(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    def __init__(self, **kwargs):
+        if "spec" not in kwargs or kwargs["spec"] is None:
+            raise ValueError("Dataset requires spec")
+        super().__init__(**kwargs)
+
 
 class Run(Base):
     __tablename__ = "runs"
@@ -100,6 +105,23 @@ class Checkpoint(Base):
         "Deployment", back_populates="checkpoint", cascade="all, delete-orphan"
     )
 
+    # Backwards-compatible attribute names used by older tests and helpers.
+    path = synonym("tinker_path")
+    metrics = synonym("meta")
+
+    def __init__(self, **kwargs):
+        if "path" in kwargs and "tinker_path" not in kwargs:
+            kwargs["tinker_path"] = kwargs.pop("path")
+        if "metrics" in kwargs and "meta" not in kwargs:
+            kwargs["meta"] = kwargs.pop("metrics")
+        if "run_id" not in kwargs or kwargs["run_id"] is None:
+            raise ValueError("Checkpoint requires run_id")
+        if "step" not in kwargs or kwargs["step"] is None:
+            raise ValueError("Checkpoint requires step")
+        if not isinstance(kwargs["step"], int):
+            raise TypeError("Checkpoint step must be an integer")
+        super().__init__(**kwargs)
+
 
 class Evaluation(Base):
     __tablename__ = "evaluations"
@@ -111,6 +133,11 @@ class Evaluation(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     run = relationship("Run", back_populates="evaluations")
+
+    def __init__(self, **kwargs):
+        if "run_id" not in kwargs or kwargs["run_id"] is None:
+            raise ValueError("Evaluation requires run_id")
+        super().__init__(**kwargs)
 
 
 class ModelRegistry(Base):

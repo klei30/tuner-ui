@@ -2,8 +2,15 @@
 End-to-end tests for hyperparameter calculation feature.
 """
 
+import os
+import pytest
 import requests
 from typing import Dict, Any
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_E2E") != "1",
+    reason="requires a live backend server on localhost:8000; set RUN_LIVE_E2E=1",
+)
 
 
 class TestHyperparamE2E:

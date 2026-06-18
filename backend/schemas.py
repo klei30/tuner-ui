@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 class MessageResponse(BaseModel):
@@ -119,7 +119,9 @@ class RunBase(BaseModel):
         "EVAL",  # Evaluation
         "SAMPLE",  # Sampling
     ]
-    config_json: RunConfig
+    config_json: RunConfig = Field(
+        validation_alias=AliasChoices("config_json", "config")
+    )
 
 
 class RunCreate(RunBase):
@@ -145,6 +147,8 @@ class RunRead(BaseModel):
 
 class RunListResponse(BaseModel):
     runs: list[RunRead]
+    items: Optional[list[RunRead]] = None
+    total: Optional[int] = None
 
 
 class RunDetailResponse(RunRead):
@@ -174,6 +178,7 @@ class CheckpointRead(CheckpointBase):
     id: int
     run_id: int
     tinker_path: str
+    path: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -317,6 +322,7 @@ class SupportedModel(BaseModel):
 class ModelCatalogResponse(BaseModel):
     supported_models: list[SupportedModel]
     registered_models: list[ModelRead]
+    models: Optional[list[SupportedModel]] = None
 
 
 class HyperparamRequest(BaseModel):

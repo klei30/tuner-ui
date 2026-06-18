@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ExternalLink, Loader2, RefreshCw, Rocket, Package, Lock, Globe, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { listDeployments } from "@/lib/api";
 
 interface Deployment {
   id: number;
@@ -35,29 +36,7 @@ export default function DeploymentsPage() {
     console.log("[Deployments] Fetching...");
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/deployments", {
-        credentials: "include",
-        cache: "no-store",
-      });
-
-      console.log("[Deployments] Response status:", response.status);
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError("Please log in to view deployments");
-        } else if (response.status === 403) {
-          setError("Access denied");
-        } else {
-          const errorText = await response.text();
-          console.error("Error response:", errorText);
-          setError(`Failed to fetch deployments: ${errorText || response.statusText}`);
-        }
-        setDeployments([]);
-        setIsLoading(false);
-        return;
-      }
-
-      const data = await response.json();
+      const data = await listDeployments();
       console.log("Deployments data:", data);
       hasDataRef.current = true;
       setDeployments(data);

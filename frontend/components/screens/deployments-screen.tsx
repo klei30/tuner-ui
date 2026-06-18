@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Rocket, Copy, ExternalLink, Globe, Lock, RefreshCw, Code2, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast-provider';
 import { formatDistanceToNow } from 'date-fns';
+import { listDeployments } from '@/lib/api';
 
 type Screen = 'overview' | 'training' | 'models' | 'chat' | 'datasets' | 'deployments';
 
@@ -159,15 +160,10 @@ export function DeploymentsScreen({ setScreen }: DeploymentsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasDataRef = useRef(false);
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
   const fetchDeployments = useCallback(async () => {
     try {
-      const res = await fetch(`${baseUrl}/deployments`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const list: Deployment[] = Array.isArray(data) ? data : (data.deployments ?? []);
-      setDeployments(list);
+      setDeployments(await listDeployments());
       hasDataRef.current = true;
       setError(null);
     } catch (e: any) {
@@ -175,7 +171,7 @@ export function DeploymentsScreen({ setScreen }: DeploymentsScreenProps) {
     } finally {
       setLoading(false);
     }
-  }, [baseUrl]);
+  }, []);
 
   useEffect(() => {
     void fetchDeployments();

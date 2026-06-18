@@ -17,6 +17,12 @@ from sqlalchemy.orm import Session
 from utils.env_utils import setup_training_environment
 from models import Run
 
+try:
+    from checkpoint_helper import register_checkpoint_from_logs
+except Exception:  # pragma: no cover - optional helper in local mode
+    async def register_checkpoint_from_logs(*_args, **_kwargs) -> None:
+        return None
+
 
 class RecipeExecutor:
     """
@@ -170,8 +176,6 @@ class RecipeExecutor:
         and register them in the database.
         """
         try:
-            from checkpoint_helper import register_checkpoint_from_logs
-
             await register_checkpoint_from_logs(
                 self.session, self.run, self.logs_path
             )

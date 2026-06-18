@@ -2,8 +2,15 @@
 Test the hyperparameter calculation feature end-to-end.
 """
 
+import os
 import sys
+import pytest
 import requests
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_E2E") != "1",
+    reason="requires a live backend server on localhost:8000; set RUN_LIVE_E2E=1",
+)
 
 
 def test_hyperparam_calculation_e2e():

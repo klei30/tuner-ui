@@ -6,7 +6,7 @@ pydantic-settings
 # Database
 sqlalchemy
 alembic==1.13.1
-psycopg2-binary==2.9.9
+psycopg2-binary>=2.9.10,<3
 
 # Task queue
 celery[redis]==5.3.4

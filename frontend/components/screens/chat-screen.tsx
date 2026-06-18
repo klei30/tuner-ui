@@ -42,8 +42,19 @@ export function ChatScreen({ supportedModels, registeredModels, setScreen }: Cha
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const allModels = [
-    ...supportedModels.map(m => ({ value: m.model_name, label: m.model_name.split('/')[1] ?? m.model_name, type: 'Base' })),
-    ...registeredModels.map(m => ({ value: `tinker://${m.name}`, label: m.name, type: 'Fine-tuned' })),
+    ...supportedModels.map(m => ({
+      value: `base:${m.model_name}`,
+      modelName: m.model_name,
+      label: m.model_name.split('/')[1] ?? m.model_name,
+      type: 'Base' as const,
+    })),
+    ...registeredModels.map(m => ({
+      value: `registered:${m.id}`,
+      modelId: m.id,
+      modelName: m.base_model,
+      label: m.name,
+      type: 'Fine-tuned' as const,
+    })),
   ];
 
   useEffect(() => {
@@ -67,11 +78,11 @@ export function ChatScreen({ supportedModels, registeredModels, setScreen }: Cha
     setLoading(true);
 
     try {
-      const isTinker = selectedModel.startsWith('tinker://');
+      const selected = allModels.find(m => m.value === selectedModel);
       const resp = await chatWithModel({
         prompt: content,
-        base_model: isTinker ? undefined : selectedModel,
-        model_id: isTinker ? undefined : undefined,
+        base_model: selected?.type === 'Base' ? selected.modelName : undefined,
+        model_id: selected?.type === 'Fine-tuned' ? selected.modelId : undefined,
         temperature,
         max_tokens: maxTokens,
       });

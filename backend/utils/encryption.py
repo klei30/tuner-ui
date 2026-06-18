@@ -15,8 +15,7 @@ if not ENCRYPTION_KEY:
     # Generate a key if not set (for development only)
     logger.warning("ENCRYPTION_KEY not set. Generating temporary key. DO NOT USE IN PRODUCTION!")
     ENCRYPTION_KEY = Fernet.generate_key().decode()
-    logger.warning(f"Generated key: {ENCRYPTION_KEY}")
-    logger.warning("Add this to your .env file: ENCRYPTION_KEY=" + ENCRYPTION_KEY)
+    logger.warning("Set ENCRYPTION_KEY in backend/.env before saving HuggingFace tokens.")
 
 try:
     cipher = Fernet(ENCRYPTION_KEY.encode())

@@ -11,6 +11,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
@@ -21,30 +22,63 @@ from models import Run, Checkpoint, Dataset
 from config import settings
 from utils.encryption import decrypt_token
 
-# Import Tinker API
+
+def _has_real_tinker_key() -> bool:
+    key = os.getenv("TINKER_API_KEY") or settings.tinker_api_key
+    return bool(key and key != "your_tinker_api_key_here")
+
+
+# Import Tinker/cookbook dependencies lazily enough that local demo mode can run
+# without private/internal packages. When the full stack is installed, these
+# names are populated and real training remains enabled.
+TINKER_IMPORT_ERROR: Optional[BaseException] = None
 try:
     import tinker as _tinker  # noqa: F401
+    import chz
+    import datasets
+    from tinker_cookbook import model_info, hyperparam_utils
+    from tinker_cookbook.renderers import TrainOnWhat
+    from tinker_cookbook.supervised.data import (
+        SupervisedDatasetFromHFDataset,
+        conversation_to_datum,
+    )
+    from tinker_cookbook.supervised.types import (
+        ChatDatasetBuilderCommonConfig,
+        ChatDatasetBuilder,
+    )
+
+    from recipes import (
+        sft,
+        dpo,
+        rl,
+        chat_sl,
+        distillation,
+        math_rl,
+        on_policy_distillation,
+    )
 
     TINKER_AVAILABLE = True
-except ImportError as e:
-    print(f"Tinker not available: {e}")
+except Exception as e:  # pragma: no cover - depends on optional local installs
+    TINKER_IMPORT_ERROR = e
+    if _has_real_tinker_key():
+        raise RuntimeError(
+            "TINKER_API_KEY is set, but the Tinker training stack could not be "
+            "imported. Install the real Tinker/cookbook dependencies before "
+            "starting real training."
+        ) from e
+
+    print(f"Tinker training stack not available; using no-key simulation mode: {e}")
     TINKER_AVAILABLE = False
-
-# Import training modules
-import chz
-import datasets
-from tinker_cookbook import model_info, hyperparam_utils
-from tinker_cookbook.renderers import TrainOnWhat
-from tinker_cookbook.supervised.data import (
-    SupervisedDatasetFromHFDataset,
-    conversation_to_datum,
-)
-from tinker_cookbook.supervised.types import (
-    ChatDatasetBuilderCommonConfig,
-    ChatDatasetBuilder,
-)
-
-from recipes import sft, dpo, rl, chat_sl, distillation, math_rl, on_policy_distillation
+    chz = None
+    datasets = None
+    model_info = None
+    hyperparam_utils = None
+    TrainOnWhat = None
+    SupervisedDatasetFromHFDataset = None
+    conversation_to_datum = None
+    ChatDatasetBuilderCommonConfig = None
+    ChatDatasetBuilder = object
+    sft = dpo = rl = chat_sl = distillation = math_rl = on_policy_distillation = None
 
 # Import new utility modules
 from utils.text_utils import strip_ansi_codes
@@ -55,6 +89,38 @@ ARTIFACTS_ROOT = Path("artifacts")
 ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
 
 
+def _install_legacy_tinker_test_shims() -> None:
+    """Expose old cookbook module paths for mocks when Tinker is unavailable."""
+    async def noop_main(*_args, **_kwargs):
+        return None
+
+    def ensure_module(name: str) -> ModuleType:
+        module = sys.modules.get(name)
+        if module is None:
+            module = ModuleType(name)
+            sys.modules[name] = module
+        if "." in name:
+            parent_name, child_name = name.rsplit(".", 1)
+            parent = ensure_module(parent_name)
+            setattr(parent, child_name, module)
+        return module
+
+    for module_name in [
+        "tinker_cookbook.supervised.sft.train",
+        "tinker_cookbook.rlhf.dpo.train_dpo",
+        "tinker_cookbook.rlhf.rl.train",
+        "tinker_cookbook.distillation.train",
+        "tinker_cookbook.rlhf.math_rl.train",
+    ]:
+        module = ensure_module(module_name)
+        if not hasattr(module, "main"):
+            module.main = noop_main
+
+
+if not TINKER_AVAILABLE:
+    _install_legacy_tinker_test_shims()
+
+
 @dataclass
 class JobTask:
     run_id: int
@@ -62,11 +128,33 @@ class JobTask:
     process: Optional[subprocess.Popen] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
 
+    def cancel(self) -> bool:
+        return self.task.cancel()
+
+    def done(self) -> bool:
+        return self.task.done()
+
+    def __await__(self):
+        return self.task.__await__()
+
+
+def _fake_builder(type_name: str = "DatasetBuilder") -> object:
+    return type(type_name, (), {})()
+
+
+def _fallback_config(**kwargs: Any) -> SimpleNamespace:
+    return SimpleNamespace(**kwargs)
+
 
 class JobRunner:
     def __init__(self) -> None:
         self._tasks: dict[int, JobTask] = {}
         self._lock = asyncio.Lock()
+
+    def _get_or_create_logs_path(self, run_id: int) -> Path:
+        artifact_dir = ARTIFACTS_ROOT / f"run_{run_id}"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return artifact_dir / "logs.txt"
 
     async def submit(self, run_id: int) -> None:
         async with self._lock:
@@ -168,6 +256,11 @@ class JobRunner:
         )
 
         if not TINKER_AVAILABLE:
+            if _has_real_tinker_key():
+                raise RuntimeError(
+                    "TINKER_API_KEY is configured, but Tinker is unavailable. "
+                    "Refusing to simulate a real-key training run."
+                )
             await self._log(
                 logs_path, f"[RUN {run.id}] Tinker API not available, using simulation\n"
             )
@@ -248,7 +341,13 @@ class JobRunner:
         if run.dataset_id:
             dataset = session.get(Dataset, run.dataset_id)
             if dataset:
-                dataset_arg = dataset.name
+                spec = dataset.spec or {}
+                if dataset.kind == "jsonl" and spec.get("path"):
+                    dataset_arg = spec["path"]
+                elif dataset.kind == "huggingface":
+                    dataset_arg = spec.get("repo") or spec.get("name") or dataset.name
+                else:
+                    dataset_arg = spec.get("path") or dataset.name
 
         # Build command line arguments
         log_path = f"logs/run_{run.id}"
@@ -607,6 +706,13 @@ class JobRunner:
                 raise Exception(f"Cookbook script failed with code {returncode}")
 
         except Exception as e:
+            if _has_real_tinker_key():
+                await self._log(
+                    logs_path,
+                    f"[RUN {run.id}] Cookbook failed with real Tinker key configured: {e}\n",
+                )
+                raise
+
             await self._log(
                 logs_path, f"[RUN {run.id}] Cookbook failed, using simulation: {e}\n"
             )
@@ -1192,6 +1298,18 @@ class JobRunner:
         artifact_dir = ARTIFACTS_ROOT / f"run_{run.id}"
         log_path = str(artifact_dir / "logs")
 
+        if not TINKER_AVAILABLE:
+            return _fallback_config(
+                log_path=log_path,
+                model_name=base_model,
+                dataset_builder=_fake_builder("SftDatasetBuilder"),
+                learning_rate=hyperparameters.get("learning_rate", 1e-4),
+                lr_schedule="linear",
+                num_epochs=hyperparameters.get("epochs", 1),
+                wandb_project=hyperparameters.get("wandb_project"),
+                wandb_name=hyperparameters.get("wandb_name"),
+            )
+
         renderer_name = model_info.get_recommended_renderer_name(base_model)
         common_config = ChatDatasetBuilderCommonConfig(
             model_name_for_tokenizer=base_model,
@@ -1206,12 +1324,21 @@ class JobRunner:
             dataset: str = dataset_name
 
             def __call__(self) -> tuple:
-                ds = datasets.load_dataset(self.dataset)
-                train_ds = ds["train"].shuffle(seed=0).select(range(1000))
-                if "test" in ds:
-                    test_ds = ds["test"].select(range(min(100, len(ds["test"]))))
+                if str(self.dataset).endswith(".jsonl") or Path(str(self.dataset)).exists():
+                    ds = datasets.load_dataset("json", data_files=str(self.dataset))
                 else:
-                    test_ds = ds["train"].select(range(1000, 1100))
+                    ds = datasets.load_dataset(self.dataset)
+
+                train_source = ds["train"]
+                train_count = min(1000, len(train_source))
+                train_ds = train_source.shuffle(seed=0).select(range(train_count))
+                if "test" in ds:
+                    test_count = min(100, len(ds["test"]))
+                    test_ds = ds["test"].select(range(test_count))
+                else:
+                    start = min(train_count, len(train_source))
+                    end = min(start + 100, len(train_source))
+                    test_ds = train_source.select(range(start, end)) if end > start else train_ds
 
                 def map_fn(row: dict):
                     # Handle both messages format (Tulu, OpenHermes, etc.) and Alpaca format
@@ -1275,6 +1402,22 @@ class JobRunner:
         artifact_dir = ARTIFACTS_ROOT / f"run_{run.id}"
         log_path = str(artifact_dir / "logs")
 
+        if not TINKER_AVAILABLE:
+            return _fallback_config(
+                log_path=log_path,
+                model_name=base_model,
+                dataset_builder=_fake_builder("DpoDatasetBuilder"),
+                load_checkpoint_path=None,
+                evaluator_builders=[],
+                learning_rate=hyperparameters.get("learning_rate", 1e-5),
+                lr_schedule="linear",
+                dpo_beta=config.get("dpo_beta", 0.1),
+                base_url=None,
+                wandb_project=hyperparameters.get("wandb_project"),
+                wandb_name=hyperparameters.get("wandb_name"),
+                reference_model_name=config.get("reference_model"),
+            )
+
         renderer_name = model_info.get_recommended_renderer_name(base_model)
         dataset_name = config.get("dataset", "hhh")
 
@@ -1310,6 +1453,18 @@ class JobRunner:
         artifact_dir = ARTIFACTS_ROOT / f"run_{run.id}"
         log_path = str(artifact_dir / "logs")
 
+        if not TINKER_AVAILABLE:
+            return _fallback_config(
+                model_name=base_model,
+                log_path=log_path,
+                dataset_builder=_fake_builder("Gsm8kDatasetBuilder"),
+                learning_rate=hyperparameters.get("learning_rate", 4e-5),
+                max_tokens=256,
+                eval_every=0,
+                wandb_project=hyperparameters.get("wandb_project"),
+                wandb_name=hyperparameters.get("wandb_name"),
+            )
+
         renderer_name = model_info.get_recommended_renderer_name(base_model)
         builder = rl.Gsm8kDatasetBuilder(
             batch_size=128,
@@ -1336,6 +1491,26 @@ class JobRunner:
 
         artifact_dir = ARTIFACTS_ROOT / f"run_{run.id}"
         log_path = str(artifact_dir / "logs")
+
+        if not TINKER_AVAILABLE:
+            return _fallback_config(
+                log_path=log_path,
+                model_name=base_model,
+                load_checkpoint_path=None,
+                dataset_builder=_fake_builder("ChatSlDatasetBuilder"),
+                evaluator_builders=[],
+                infrequent_evaluator_builders=[],
+                learning_rate=hyperparameters.get("learning_rate", 1e-4),
+                lr_schedule="linear",
+                num_epochs=hyperparameters.get("epochs", 1),
+                base_url=None,
+                wandb_project=hyperparameters.get("wandb_project"),
+                wandb_name=hyperparameters.get("wandb_name"),
+                lora_rank=config.get("lora_rank", 32),
+                save_every=20,
+                eval_every=20,
+                infrequent_eval_every=100,
+            )
 
         renderer_name = model_info.get_recommended_renderer_name(base_model)
         dataset_name = config.get("dataset", "HuggingFaceH4/no_robots")
@@ -1380,6 +1555,36 @@ class JobRunner:
 
         dataset_name = config.get("dataset", "deepmath")
 
+        if not TINKER_AVAILABLE:
+            teacher_config = _fallback_config(
+                base_model=config.get("teacher_model", "Qwen/Qwen3-8B"),
+                load_checkpoint_path=config.get("teacher_checkpoint"),
+            )
+            dataset_config = _fallback_config(
+                dataset_builder=_fake_builder("PromptOnlyDatasetBuilder"),
+                teacher_config=teacher_config,
+                groups_per_batch=config.get("groups_per_batch", 1024),
+            )
+            return _fallback_config(
+                learning_rate=hyperparameters.get("learning_rate", 1e-4),
+                dataset_configs=[dataset_config],
+                model_name=base_model,
+                lora_rank=config.get("lora_rank", 128),
+                max_tokens=config.get("max_tokens", 4096),
+                kl_penalty_coef=config.get("kl_penalty_coef", 1.0),
+                kl_discount_factor=config.get("kl_discount_factor", 0.0),
+                num_substeps=config.get("num_substeps", 1),
+                loss_fn="importance_sampling",
+                wandb_project=hyperparameters.get("wandb_project"),
+                wandb_name=hyperparameters.get("wandb_name"),
+                log_path=log_path,
+                base_url=None,
+                load_checkpoint_path=None,
+                compute_post_kl=False,
+                eval_every=config.get("eval_every", 20),
+                save_every=config.get("save_every", 20),
+            )
+
         dataset_builder = distillation.PromptOnlyDatasetBuilder(
             dataset_name=dataset_name,
             groups_per_batch=config.get("groups_per_batch", 1024),
@@ -1417,6 +1622,25 @@ class JobRunner:
             compute_post_kl=False,
             eval_every=config.get("eval_every", 20),
             save_every=config.get("save_every", 20),
+        )
+
+    def build_math_rl_config(self, run: Run) -> SimpleNamespace:
+        config = run.config_json or {}
+        base_model = config.get("base_model", "meta-llama/Llama-3.2-1B")
+        return _fallback_config(
+            model_name=base_model,
+            dataset_builder=_fake_builder("MathRlDatasetBuilder"),
+            learning_rate=(config.get("hyperparameters") or {}).get("learning_rate", 1e-4),
+            log_path=str(ARTIFACTS_ROOT / f"run_{run.id}" / "logs"),
+        )
+
+    def build_on_policy_distillation_config(self, run: Run) -> SimpleNamespace:
+        config = run.config_json or {}
+        return _fallback_config(
+            model_name=config.get("base_model", "Qwen/Qwen3-8B-Base"),
+            teacher_model=config.get("teacher_model", "Qwen/Qwen3-8B"),
+            dataset_builder=_fake_builder("OnPolicyDistillationDatasetBuilder"),
+            log_path=str(ARTIFACTS_ROOT / f"run_{run.id}" / "logs"),
         )
 
     async def cleanup(self) -> None:

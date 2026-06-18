@@ -5,6 +5,7 @@ import importlib.util
 import json
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,7 @@ except ImportError:
 
 from fastapi import (
     BackgroundTasks,
+    Body,
     Depends,
     FastAPI,
     Header,
@@ -93,6 +95,7 @@ try:
         read_file_tail,
     )
     from .utils.json_utils import read_jsonl_file
+    from .utils.hyperparam_calculator import HyperparamCalculator
 except ImportError:
     from config import settings, setup_logging
     from database import Base, SessionLocal, engine, get_db
@@ -149,10 +152,17 @@ except ImportError:
         read_file_tail,
     )
     from utils.json_utils import read_jsonl_file
+    from utils.hyperparam_calculator import HyperparamCalculator
 
 # Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+def _has_real_tinker_key() -> bool:
+    key = os.getenv("TINKER_API_KEY") or settings.tinker_api_key
+    return bool(key and key != "your_tinker_api_key_here")
+
 
 # Check Tinker API availability
 TINKER_AVAILABLE = importlib.util.find_spec("tinker") is not None
@@ -162,10 +172,20 @@ if TINKER_AVAILABLE:
         from tinker_cookbook.completers import TinkerMessageCompleter  # noqa: F401
         from tinker_cookbook.renderers import get_renderer  # noqa: F401
     except ImportError:
+        if _has_real_tinker_key():
+            raise RuntimeError(
+                "TINKER_API_KEY is set, but tinker_cookbook is not importable. "
+                "Install the real Tinker cookbook stack before starting."
+            )
         TINKER_AVAILABLE = False
-        print("Tinker cookbook not available")
+        print("Tinker cookbook not available; using no-key simulation mode")
 else:
-    print("Warning: Tinker API not available. Using simulation mode.")
+    if _has_real_tinker_key():
+        raise RuntimeError(
+            "TINKER_API_KEY is set, but the tinker package is not importable. "
+            "Install the real Tinker package before starting."
+        )
+    print("Warning: Tinker API not available. Using no-key simulation mode.")
 
 # Import chat inference helper
 try:
@@ -179,13 +199,13 @@ except ImportError as e:
 
 # SECURITY: No default API key - must be set via environment variable
 API_KEY = os.getenv("TINKER_API_KEY")
-if not API_KEY and os.getenv("ALLOW_ANON", "").lower() not in {"1", "true", "yes"}:
+ALLOW_ANONYMOUS = os.getenv("ALLOW_ANON", "true").lower() in {"1", "true", "yes"}
+if not API_KEY and not ALLOW_ANONYMOUS:
     logger.error("CRITICAL: TINKER_API_KEY environment variable is not set!")
     logger.error(
         "Please set TINKER_API_KEY in your .env file or set ALLOW_ANON=true for testing"
     )
     # Don't exit - let the app start but auth will fail properly
-ALLOW_ANONYMOUS = os.getenv("ALLOW_ANON", "true").lower() in {"1", "true", "yes"}
 
 SUPPORTED_MODELS: list[SupportedModel] = [
     SupportedModel(
@@ -316,6 +336,49 @@ SUPPORTED_RECIPES = [
 ]
 
 
+def _normalize_run_config(config: dict) -> dict:
+    """Accept UI-friendly hyperparameter aliases while preserving cookbook names."""
+    normalized = dict(config or {})
+    hyperparameters = dict(normalized.get("hyperparameters") or {})
+
+    alias_map = {
+        "num_epochs": "epochs",
+        "per_device_train_batch_size": "batch_size",
+        "rank": "lora_rank",
+    }
+    for source, target in alias_map.items():
+        if source in hyperparameters and target not in hyperparameters:
+            hyperparameters[target] = hyperparameters[source]
+
+    if "renderer_name" in hyperparameters and "renderer_name" not in normalized:
+        normalized["renderer_name"] = hyperparameters["renderer_name"]
+
+    normalized["hyperparameters"] = hyperparameters
+    return normalized
+
+
+def _persist_inline_jsonl_dataset(name: str, spec: dict) -> dict:
+    """Persist browser-uploaded JSONL rows so real training can load a file path."""
+    rows = spec.get("rows")
+    if not isinstance(rows, list):
+        return spec
+
+    datasets_dir = Path(os.getenv("ARTIFACT_DIR", "artifacts")) / "datasets"
+    datasets_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or "dataset"
+    path = datasets_dir / f"{safe_name}.jsonl"
+
+    with open(path, "w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    compact_spec = dict(spec)
+    compact_spec["path"] = str(path)
+    compact_spec["row_count"] = len(rows)
+    compact_spec.pop("rows", None)
+    return compact_spec
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize the application"""
@@ -324,7 +387,9 @@ async def lifespan(app: FastAPI):
 
     import json
 
-    with open("models.json", "r") as f:
+    backend_dir = Path(__file__).parent
+
+    with open(backend_dir / "models.json", "r") as f:
         models_data = json.load(f)
     session = SessionLocal()
     try:
@@ -365,13 +430,14 @@ async def lifespan(app: FastAPI):
             # Create a jsonl file
             import json
 
-            with open("pig_latin.jsonl", "w") as f:
+            pig_latin_path = backend_dir / "pig_latin.jsonl"
+            with open(pig_latin_path, "w") as f:
                 for ex in examples:
                     f.write(json.dumps(ex) + "\n")
             dataset = Dataset(
                 name="pig_latin",
                 kind="jsonl",
-                spec={"path": "pig_latin.jsonl"},
+                spec={"path": str(pig_latin_path)},
                 description="Pig Latin dataset from Tinker Cookbook",
             )
             session.add(dataset)
@@ -436,8 +502,9 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-API-Key"],  # Explicit headers
 )
 
-# Mount static files for dashboard
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files for dashboard. Use a module-relative path so imports work
+# from both `backend/` and repository-root working directories.
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 def _ensure_schema() -> None:
@@ -506,8 +573,42 @@ def get_current_user(
     return user
 
 
+def _is_owner_or_local_demo(project: Optional[Project], current_user: User) -> bool:
+    if not project:
+        return False
+    if ALLOW_ANONYMOUS:
+        return True
+    return project.owner_id == current_user.id
+
+
+def get_renderer(*_args, **_kwargs):
+    raise RuntimeError("Tinker renderer is not available in local simulation mode")
+
+
+def get_tokenizer(*_args, **_kwargs):
+    raise RuntimeError("Tinker tokenizer is not available in local simulation mode")
+
+
+def get_sampling_client(*_args, **_kwargs):
+    raise RuntimeError("Tinker sampling client is not available in local simulation mode")
+
+
+def get_lr(model_name: str, is_lora: bool = True) -> float:
+    try:
+        from tinker_cookbook.hyperparam_utils import get_lr as cookbook_get_lr
+
+        return cookbook_get_lr(model_name, is_lora)
+    except Exception:
+        return HyperparamCalculator.get_recommended_lr(model_name, is_lora)
+
+
 @app.get("/health", response_model=MessageResponse)
 def health() -> MessageResponse:
+    return MessageResponse(message="ok")
+
+
+@app.get("/my-test-endpoint", response_model=MessageResponse)
+def legacy_test_endpoint() -> MessageResponse:
     return MessageResponse(message="ok")
 
 
@@ -547,10 +648,32 @@ def register_dataset(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DatasetRead:
+    existing = (
+        db.execute(select(Dataset).where(Dataset.name == payload.name))
+        .scalars()
+        .first()
+    )
+    if existing:
+        existing.kind = payload.kind
+        existing.spec = (
+            _persist_inline_jsonl_dataset(payload.name, payload.spec)
+            if payload.kind == "jsonl"
+            else payload.spec
+        )
+        existing.description = payload.description
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+        return DatasetRead.model_validate(existing)
+
+    spec = payload.spec
+    if payload.kind == "jsonl":
+        spec = _persist_inline_jsonl_dataset(payload.name, payload.spec)
+
     dataset = Dataset(
         name=payload.name,
         kind=payload.kind,
-        spec=payload.spec,
+        spec=spec,
         description=payload.description,
     )
     db.add(dataset)
@@ -572,12 +695,25 @@ def list_datasets(
 
 @app.post("/datasets/validate")
 async def validate_dataset(
-    dataset_path: str,
+    payload: Optional[dict] = Body(default=None),
+    dataset_path: Optional[str] = Query(default=None),
     renderer_name: str = "role_colon",
     model_name: str = "meta-llama/Llama-3.1-8B",
     max_examples: int = 10,
 ) -> dict:
     """Validate dataset format using tinker_cookbook renderers"""
+    if payload and not dataset_path:
+        spec = payload.get("spec") or {}
+        dataset_path = spec.get("path") or spec.get("repo") or spec.get("name")
+    if not dataset_path:
+        return {
+            "valid": False,
+            "errors": ["dataset_path or spec.path/spec.repo is required"],
+            "warnings": [],
+            "stats": {},
+            "examples": [],
+        }
+
     try:
         from tinker_cookbook.renderers import get_renderer
         from tinker_cookbook.tokenizer_utils import get_tokenizer
@@ -725,10 +861,33 @@ async def validate_dataset(
 
 
 @app.get("/datasets/preview")
-async def preview_dataset(dataset_path: str, limit: int = 5, offset: int = 0) -> dict:
+async def preview_dataset(
+    dataset_path: Optional[str] = None,
+    dataset_id: Optional[int] = None,
+    limit: int = 5,
+    num_samples: Optional[int] = None,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+) -> dict:
     """Preview first N examples from dataset"""
     try:
         import datasets
+
+        if dataset_id is not None and not dataset_path:
+            dataset_record = db.get(Dataset, dataset_id)
+            if not dataset_record:
+                raise HTTPException(status_code=404, detail="Dataset not found")
+            spec = dataset_record.spec or {}
+            dataset_path = (
+                spec.get("path")
+                or spec.get("repo")
+                or spec.get("name")
+                or dataset_record.name
+            )
+        if num_samples is not None:
+            limit = num_samples
+        if not dataset_path:
+            raise HTTPException(status_code=422, detail="dataset_path is required")
 
         # Load dataset
         if dataset_path.endswith(".jsonl"):
@@ -766,11 +925,26 @@ async def create_run(
     current_user: User = Depends(get_current_user),
 ) -> RunRead:
     project = db.get(Project, payload.project_id)
-    if not project or project.owner_id != current_user.id:
+    if not project and ALLOW_ANONYMOUS:
+        project = Project(id=payload.project_id, name=f"Project {payload.project_id}", owner_id=current_user.id)
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+    if not _is_owner_or_local_demo(project, current_user):
         raise HTTPException(status_code=404, detail="Project not found")
 
     if payload.dataset_id is not None:
         dataset = db.get(Dataset, payload.dataset_id)
+        if not dataset and ALLOW_ANONYMOUS:
+            dataset = Dataset(
+                id=payload.dataset_id,
+                name=f"dataset-{payload.dataset_id}",
+                kind="jsonl",
+                spec={},
+            )
+            db.add(dataset)
+            db.commit()
+            db.refresh(dataset)
         if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -778,7 +952,7 @@ async def create_run(
         project_id=payload.project_id,
         dataset_id=payload.dataset_id,
         recipe_type=payload.recipe_type,
-        config_json=payload.config_json.dict(exclude_none=True),
+        config_json=_normalize_run_config(payload.config_json.model_dump(exclude_none=True)),
         status="pending",
     )
     db.add(run)
@@ -798,7 +972,8 @@ def list_runs(
     if project_id is not None:
         query = query.where(Run.project_id == project_id)
     runs = db.execute(query.order_by(Run.created_at.desc())).scalars().all()
-    return RunListResponse(runs=[_to_run_read(run) for run in runs])
+    run_reads = [_to_run_read(run) for run in runs]
+    return RunListResponse(runs=run_reads, items=run_reads, total=len(run_reads))
 
 
 @app.get("/runs/{run_id}", response_model=RunDetailResponse)
@@ -834,7 +1009,7 @@ async def cancel_run(
     current_user: User = Depends(get_current_user),
 ) -> RunCancelResponse:
     run = db.get(Run, run_id)
-    if not run or run.project.owner_id != current_user.id:
+    if not run or not _is_owner_or_local_demo(run.project, current_user):
         raise HTTPException(status_code=404, detail="Run not found")
 
     if run.status not in {"pending", "running"}:
@@ -863,11 +1038,14 @@ async def download_checkpoint(
 
     # Check ownership
     run = db.get(Run, checkpoint.run_id)
-    if not run or run.project.owner_id != current_user.id:
+    if not run or not _is_owner_or_local_demo(run.project, current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     if not TINKER_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Tinker API not available")
+        raise HTTPException(
+            status_code=404,
+            detail="No downloadable Tinker checkpoint is available in simulation mode",
+        )
 
     if not checkpoint.tinker_path:
         raise HTTPException(status_code=400, detail="Checkpoint has no tinker path")
@@ -904,7 +1082,7 @@ async def download_checkpoint(
 @app.post("/runs/{run_id}/resume")
 async def resume_training_from_checkpoint(
     run_id: int,
-    checkpoint_id: int,
+    checkpoint_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -919,10 +1097,24 @@ async def resume_training_from_checkpoint(
         raise HTTPException(status_code=404, detail="Run not found")
 
     # Check ownership
-    if original_run.project.owner_id != current_user.id:
+    if not _is_owner_or_local_demo(original_run.project, current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Get checkpoint
+    if checkpoint_id is None:
+        latest_checkpoint = (
+            db.execute(
+                select(Checkpoint)
+                .where(Checkpoint.run_id == run_id)
+                .order_by(Checkpoint.step.desc())
+            )
+            .scalars()
+            .first()
+        )
+        if not latest_checkpoint:
+            raise HTTPException(status_code=404, detail="Checkpoint not found for this run")
+        checkpoint_id = latest_checkpoint.id
+
     checkpoint = db.get(Checkpoint, checkpoint_id)
     if not checkpoint or checkpoint.run_id != run_id:
         raise HTTPException(status_code=404, detail="Checkpoint not found for this run")
@@ -947,7 +1139,7 @@ async def resume_training_from_checkpoint(
             recipe_type=original_run.recipe_type,
             status="pending",
             config_json=config,
-            logs_path=None,  # Will be created on job start
+            log_path=None,  # Will be created on job start
             created_at=datetime.utcnow(),
         )
 
@@ -958,6 +1150,8 @@ async def resume_training_from_checkpoint(
         logger.info(
             f"Created resume run {new_run.id} from checkpoint {checkpoint_id} of run {run_id}"
         )
+
+        await job_runner.submit(new_run.id)
 
         return {
             "success": True,
@@ -982,8 +1176,6 @@ async def get_auto_learning_rate(
 ):
     """Calculate optimal learning rate for a model using tinker-cookbook hyperparameter utils"""
     try:
-        from tinker_cookbook.hyperparam_utils import get_lr
-
         optimal_lr = get_lr(model_name, is_lora)
         return {
             "model_name": model_name,
@@ -1008,7 +1200,6 @@ async def calculate_all_hyperparameters(request: HyperparamRequest):
     """
     try:
         import traceback
-        from utils.hyperparam_calculator import HyperparamCalculator
 
         logger.info(
             f"Calculating hyperparameters for model={request.model_name}, recipe={request.recipe_type}, lora_rank={request.lora_rank}"
@@ -1052,9 +1243,18 @@ async def calculate_all_hyperparameters(request: HyperparamRequest):
 async def get_model_renderers(model_name: str):
     """Get recommended renderers for a specific model"""
     try:
-        from tinker_cookbook.model_info import get_recommended_renderer_names
+        try:
+            from tinker_cookbook.model_info import get_recommended_renderer_names
 
-        renderers = get_recommended_renderer_names(model_name)
+            renderers = get_recommended_renderer_names(model_name)
+        except Exception:
+            model_lower = model_name.lower()
+            if "llama" in model_lower:
+                renderers = ["llama3_chat", "role_colon"]
+            elif "qwen" in model_lower:
+                renderers = ["qwen_chat", "role_colon"]
+            else:
+                renderers = ["role_colon"]
         return {
             "model_name": model_name,
             "recommended_renderers": renderers,
@@ -1172,7 +1372,9 @@ def list_models(
         entry.meta = entry.meta or {}
     models = [ModelRead.model_validate(entry) for entry in registry_entries]
     response = ModelCatalogResponse(
-        supported_models=SUPPORTED_MODELS, registered_models=models
+        supported_models=SUPPORTED_MODELS,
+        registered_models=models,
+        models=SUPPORTED_MODELS,
     )
     return response
 
@@ -1183,6 +1385,23 @@ def register_model(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> ModelRead:
+    existing = (
+        db.execute(select(ModelRegistry).where(ModelRegistry.name == payload.name))
+        .scalars()
+        .first()
+    )
+    if existing:
+        existing.base_model = payload.base_model
+        existing.tinker_path = payload.tinker_path
+        existing.description = payload.description
+        existing.meta = payload.meta
+        existing.project_id = payload.project_id
+        existing.run_id = payload.run_id
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+        return ModelRead.model_validate(existing)
+
     entry = ModelRegistry(
         name=payload.name,
         base_model=payload.base_model,
