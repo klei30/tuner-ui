@@ -5,14 +5,42 @@
 ![Last Commit](https://img.shields.io/github/last-commit/klei30/tuner-ui)
 ![Contributors](https://img.shields.io/github/contributors/klei30/tuner-ui)
 
-Tuner UI is an open-source interface for running and inspecting model tuning
-workflows with Tinker. It combines a Next.js workspace with a FastAPI backend
-for datasets, training recipes, run monitoring, checkpoints, model testing, and
-Hugging Face deployment.
+Tuner UI is an open-source research platform for studying human-AI interactivity
+in model adaptation. Built on Tinker, it gives researchers a working, reproducible
+environment to measure how integrated interfaces — combining live training signals,
+dataset provenance, configuration state, and checkpoint evaluation — affect the
+quality of human steering decisions during fine-tuning.
+
+The central research question: does keeping humans meaningfully in the loop during
+model adaptation produce better models, faster, with less wasted compute?
 
 > Real training requires a valid `TINKER_API_KEY` and access to the Tinker SDK.
 > The SDK package is not distributed in this repository; the repository
 > includes the application-side cookbook integration.
+
+## Research Agenda
+
+Tuner UI is built as a foundation for studying an open problem in human-AI
+interactivity: how much does the quality of the interface between a researcher
+and a running training job affect the adaptation outcome?
+
+Four measurable questions guide the research:
+
+1. **Intervention-to-feedback latency.** How much does an integrated interface
+   reduce the time from a dataset or recipe change to an interpretable training
+   signal?
+2. **Decision quality.** Can researchers identify failed runs and useful
+   checkpoints earlier when configuration, metrics, logs, and behavior are
+   visible together?
+3. **Reproducibility.** Can another operator reproduce a tuning result from the
+   recorded dataset, recipe, hyperparameters, checkpoints, and evaluation trail?
+4. **Signal validity.** Which interface-level signals actually predict useful
+   model behavior rather than merely confirming that a run completed?
+
+The six-month research agenda extends this foundation toward real-time human
+steering controls and a standardized, open evaluation harness for interactivity
+in model adaptation — designed to be reproducible by independent researchers on
+any Tinker-compatible workload.
 
 ## What It Does
 
