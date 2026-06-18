@@ -10,12 +10,6 @@ workflows with Tinker. It combines a Next.js workspace with a FastAPI backend
 for datasets, training recipes, run monitoring, checkpoints, model testing, and
 Hugging Face deployment.
 
-## Repository Signals
-
-GitHub traffic analytics are private to the repository owner. For public
-evidence, use the repository badges above and a screenshot of the GitHub
-`Insights → Traffic` page when you need clone and view counts.
-
 > Real training requires a valid `TINKER_API_KEY` and access to the Tinker SDK.
 > The SDK package is not distributed in this repository; the repository
 > includes the application-side cookbook integration.
