@@ -9,7 +9,6 @@ from datetime import datetime
 from unittest.mock import Mock, AsyncMock
 import tempfile
 import asyncio
-import os
 
 # Add backend to Python path for imports
 backend_path = Path(__file__).parent.parent
@@ -34,19 +33,6 @@ EXPECTED_HYPERPARAMS = {
     ("meta-llama/Llama-3.1-8B", "dpo"): {"batch_size": 32, "lora_rank": 32},
     ("meta-llama/Llama-3.1-8B", "rl"): {"batch_size": 16, "lora_rank": 32},
 }
-
-
-def pytest_collection_modifyitems(session, config, items):
-    if os.getenv("RUN_LIVE_E2E") == "1":
-        return
-
-    live_e2e_files = {"test_hyperparam_e2e.py", "test_hyperparam_manual.py"}
-    skip_live = pytest.mark.skip(
-        reason="requires a live backend server on localhost:8000; set RUN_LIVE_E2E=1"
-    )
-    for item in items:
-        if item.path.name in live_e2e_files:
-            item.add_marker(skip_live)
 
 
 # ============================================================================

@@ -21,6 +21,9 @@ from database import SessionLocal
 from models import Run, Checkpoint, Dataset
 from config import settings
 from utils.encryption import decrypt_token
+from utils.env_utils import setup_training_environment
+from utils.recipe_executor import create_recipe_executor
+from utils.text_utils import strip_ansi_codes
 
 
 def _has_real_tinker_key() -> bool:
@@ -79,11 +82,6 @@ except Exception as e:  # pragma: no cover - depends on optional local installs
     ChatDatasetBuilderCommonConfig = None
     ChatDatasetBuilder = object
     sft = dpo = rl = chat_sl = distillation = math_rl = on_policy_distillation = None
-
-# Import new utility modules
-from utils.text_utils import strip_ansi_codes
-from utils.env_utils import setup_training_environment
-from utils.recipe_executor import create_recipe_executor
 
 ARTIFACTS_ROOT = Path("artifacts")
 ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
